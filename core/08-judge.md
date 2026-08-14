@@ -31,11 +31,21 @@ You are not defending the code and not defending the finding. The gates verify t
 | **INTENDED** | documented design tradeoff; no invariant broken |
 | **FALSE POSITIVE** | a specific gate fails with concrete evidence |
 
-## 10.3 Confidence
+## 10.3 Confidence (labels findings, never removes them)
 
-Start at **100**; deduct: partial attack path −20 · bounded non-compounding impact −15 · requires specific (but achievable) state −10 · weak evidence sources (off-chain data, unverified external behavior) −10.
+**Verdict determines whether something is a finding. Confidence only labels it.** A VALID or LIKELY VALID verdict ALWAYS appears in the findings section — regardless of confidence score.
 
-Bands: ≥80 high · 65–79 medium · <65 low → report as lead, not finding.
+Start at **100**; deduct only for genuine weaknesses:
+
+- Partial attack path (P4 promotion: a named missing step) −20
+- Evidence relies on off-chain data or unverified external behavior −10
+- Requires specific but achievable state −5
+
+A **complete unbroken trace (P2) is full evidence** — it takes NO "partial path" deduction and NO "weak evidence" deduction. No PoC ≠ weak evidence.
+
+Bands (labels only): ≥80 high · 65–79 medium · 40–64 low · <40 → lead (with reason).
+
+Never let deductions accumulate into demotion for a candidate that passed all five gates — the gates already proved the attack fires end-to-end.
 
 ## 10.4 Severity (recalibrate from the verified path, not the claim)
 
@@ -50,8 +60,17 @@ Override rules: admin-only without amplifier → not a finding (document in gove
 ## 10.5 Dedup & completeness
 
 - Dedup key: (contract, function, mechanism, fix-shape). Same root cause but different fix shapes → distinct findings. The same missing named check across many functions → ONE finding, title generalized to the missing check.
-- Cross-contract echo: a root cause confirmed as a finding in one contract → promote in every contract with the identical pattern.
 - Completeness check before finalizing — print: `Completeness: N unique (contract, function, mechanism) in leads, N covered by verdict or documented rejection.` Zero silent drops.
+
+## 10.6 Lead promotion (the judge's upward path — never only kill/demote)
+
+Before finalizing, promote leads where warranted:
+
+- **Cross-contract echo.** A root cause confirmed as a finding in one contract → promote in every contract with the identical pattern.
+- **Multi-agent convergence.** 2+ independent lenses/agents/passes flagged the same area and the lead was demoted (not rejected) → promote to FINDING at confidence 75.
+- **Partial-path completion.** The only weakness is an incomplete trace, but the path is reachable and unguarded → promote to FINDING at confidence 75, description only.
+- **Evidence upgrade.** LIKELY VALID (confidence <80) → VALID when the missing evidence (PoC / reachability proof) is supplied.
+- Promoted findings still carry their promotion reason in `judgments.md`; leads that do not meet any criterion stay leads — explicitly listed, never silent-dropped.
 
 ## Output: `judgments.md`
 

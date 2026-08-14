@@ -34,7 +34,11 @@ Status            (NEW / KNOWN)
 
 ## 11.3 Honesty rules
 
-- No speculative claims; no manufactured findings. **"No valid vulnerability found" is a successful outcome when the evidence supports it.**
+- No speculative claims; no manufactured findings. **"No valid vulnerability found" is a successful outcome when the evidence supports it** — but it is only credible when it comes with the receipts:
+  - the completeness line from Phase 10 (`Completeness: N leads, N covered...`) is printed in the report,
+  - the **leads section lists every surviving lead** with what remains unverified,
+  - the validation log shows what was checked and killed, with kill reasons.
+  - A report with zero findings AND zero leads means the audit did not engage — go back to Phase 4 and re-run the accounting lens.
 - Every severity claim justified in one line from the verified path.
 - State confidence and open questions explicitly; never hide uncertainty.
 - Do not report: linter/compiler issues, gas micro-optimizations, naming, NatSpec, admin privileges by design (without amplifier), missing events alone, centralization without an exploit path, implausible preconditions.
