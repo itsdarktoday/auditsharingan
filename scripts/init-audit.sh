@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# init-audit.sh — create the ultimate-audit working directory skeleton
+# init-audit.sh — create the AuditSharingan-audit working directory skeleton
 # Usage: bash init-audit.sh [TARGET_DIR]  (default: .)
 set -euo pipefail
 
 TARGET="${1:-.}"
-AUDIT_DIR="$TARGET/ultimate-audit"
+AUDIT_DIR="$TARGET/AuditSharingan-audit"
 
 mkdir -p "$AUDIT_DIR"/{poc,fuzz,evidence}
 

@@ -1,6 +1,6 @@
 # Cluster 4: Non-EVM Chains & Static-Analysis Tooling — Deep Extraction Report
 
-**Scope:** 12 repositories under `/home/nishan/ultimate-web3-security/sources/`:
+**Scope:** 12 upstream repositories:
 `move-auditor`, `move-auditor-skills`, `sui-move-skill`, `SUIZERO`, `safe-solana-builder`, `solana-token-extensions-security`, `solskill`, `zk-skills`, `weasel`, `GPTScan`, `hydration-node`, `openzeppelin-skills`.
 
 **Method:** SKILL.md, README, methodology docs, agent prompts, attack-vector catalogs, judging/validation references, and tool sources were read in full or representative depth. Quotes are verbatim with file attribution. Per-repo sections cover: (1) contribution, (2) most valuable techniques with concrete quotes, (3) contradictions, (4) gaps, (5) classification recommendation (core methodology / specialized sub-skill / reference material / tool integration / validation mechanism / judge mechanism / build-time guard). A cross-repo synthesis — including what transfers from EVM methodologies and what is chain-specific — closes the report.
@@ -574,8 +574,6 @@ A unified non-EVM security skill should be assembled as follows:
 | `openzeppelin-skills` | Build-time guard + specialized sub-skill (Sui integration review) |
 
 **Single highest-value export per chain:** Move → the SUI-23 stale-package ritual + 12.1 abort-before-checkpoint deadlock; Solana → CPI `reload()` + reward-debt settlement + duplicate-account constraints; ZK → the declarative "what does the constraint system still ALLOW?" doctrine; Substrate → the known-false-positive catalog format; tooling → GPTScan's vuln-as-data rule schema and weasel's PoC discipline.
-
-
 
 
 

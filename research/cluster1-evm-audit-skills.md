@@ -1,6 +1,6 @@
 # Cluster 1: EVM Audit Skills — Deep Extraction Report
 
-**Scope:** 9 repositories under `/home/nishan/ultimate-web3-security/sources/`:
+**Scope:** 9 upstream repositories:
 `skills` (Auditmos), `0xsimao-ai`, `sc-auditor`, `Solidity-AI-security-auditor` (Kann), `cdsecurity-skills`, `drozer-lite`, `scv-scan`, `qs_skills`, `monethic-maia`.
 
 **Method:** SKILL.md, README, methodology, prompt, reference, checklist, and template files were read in full or in representative depth. Quotes are verbatim. Per-repo sections cover: (1) contribution summary, (2) most valuable techniques, (3) contradictions, (4) gaps, (5) classification recommendation. A cross-repo synthesis and unified-skill blueprint close the report.

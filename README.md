@@ -1,72 +1,149 @@
-# Ultimate Web3 Security Skill
+<p align="center">
+  <img src="assets/auditsharingan-sharingan.png" alt="AuditSharingan emblem" width="190">
+</p>
 
-A production-grade, autonomous Web3 security-research system for agent runtimes. Give it a repository and say **"Audit this protocol"** — it runs the full pipeline:
+<h1 align="center">AuditSharingan</h1>
 
+<p align="center">
+  Web3 security auditing for agents that need evidence, not noise.
+</p>
+
+<p align="center">
+  <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-111827?style=flat-square">
+  <img alt="Python 3.10 or newer" src="https://img.shields.io/badge/python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white">
+  <img alt="Agent harness agnostic" src="https://img.shields.io/badge/harness-agnostic-7C3AED?style=flat-square">
+</p>
+
+Built by `@itsdarktoday` and `@0xscarfac3`.
+
+## What it does
+
+AuditSharingan gives an agent one workflow for:
+
+- Scoping the repository, build system, dependencies, tests, and tool gaps.
+- Modeling actors, trust boundaries, money flows, state, and invariants.
+- Finding leads across EVM/Vyper, Solana/Rust, Move, and ZK codebases.
+- Turning leads into attack paths with reachability and impact math.
+- Validating with traces, PoCs, fuzzing, symbolic checks, and fork tests.
+- Producing reports with commands, logs, scope, assumptions, and evidence.
+
+The useful rule is simple: a scanner can create a lead. A finding needs a
+reachable attack path, a broken security property, quantified impact, and
+evidence another reviewer can reproduce.
+
+## Where it adds value
+
+| Problem | AuditSharingan's answer |
+| --- | --- |
+| Scanner noise | Leads stay separate from validated findings. |
+| Missed protocol context | Actors, assets, trust, state, and invariants are modeled first. |
+| Weak exploit claims | High-impact issues require a PoC, checked trace, or mathematical proof. |
+| Missing tool coverage | Unavailable tools and failed stages are recorded as gaps. |
+| Audits that are hard to review | Every run keeps scope, commands, logs, hashes, and decisions. |
+
+## Coverage
+
+- EVM and Vyper: accounting, share inflation, access control, signatures,
+  reentrancy, oracles, upgrades, governance, MEV, bridges, gas, L2, compiler,
+  precision, and token edge cases.
+- Solana and Rust: account ownership, signers, PDAs, aliasing, CPI reloads,
+  `remaining_accounts`, account closure, and Token-2022 behavior.
+- Sui and Aptos Move: capabilities, object ownership, PTBs, dynamic fields,
+  package upgrades, timing, and balance rounding.
+- ZK circuits and verifiers: constraints, hints, field aliasing, division,
+  selectors, public inputs, replay, and privacy leaks.
+
+## Use it with any agent harness
+
+Agent Skills-compatible hosts can discover the folder from their skills path.
+Custom harnesses can load the root `SKILL.md` directly and use the same files.
+Keep the folder together and provide its path as `SKILL_DIR`.
+
+```text
+auditsharingan/
+├── SKILL.md       workflow instructions
+├── core/           audit stages
+├── skills/         chain-specific guidance
+├── agents/         review lenses and prompts
+├── scripts/        executable audit tools
+├── knowledge/      patterns and postmortems
+├── schemas/        machine-readable contracts
+└── templates/      report and finding formats
 ```
-RECON/SCOPING → PROTOCOL MODEL → THREAT MODEL → DEEP ANALYSIS (manual/static/dynamic)
-→ ATTACK GENERATION → HYPOTHESIS ENGINE → EXPLOIT VALIDATION → FALSE POSITIVE ELIMINATION
-→ ADVERSARIAL REVIEW → SECOND OPINION → FINDING JUDGE → FINAL REPORT → KNOWLEDGE MEMORY
+
+## Download
+
+Download the repository as a ZIP and extract it, or use your Git host's clone
+command. Keep the extracted `auditsharingan/` folder together.
+
+For a local Agent Skills installation, copy the downloaded folder to:
+
+```text
+/path/to/project/.agents/skills/auditsharingan
 ```
 
-**Core principle:** never equate suspicious code with vulnerability. Every finding must survive an evidence chain (Observation → Hypothesis → Reachability → Invariant violation → Attack path → Impact → Exploitability → PoC → Mitigation analysis → Known-issue analysis → Adversarial challenge → Validated finding). Optimized for *real vulnerability discovery*, not finding count. "No valid vulnerability found" is a successful outcome.
+For a custom harness, load:
 
-## Layout
-
-| Path | Role |
-|---|---|
-| `SKILL.md` | Master orchestrator: pipeline, phase dispatch, effort modes, chain dispatch, global rules |
-| `core/01..10` | Pipeline phase methodology — loaded phase-by-phase |
-| `skills/evm-deep-audit` | EVM sub-skill + load-on-trigger attack catalog |
-| `skills/solana-audit` | Solana sub-skill + Token-2022 pitfalls reference |
-| `skills/move-audit` | Sui/Aptos Move sub-skill (object model, capabilities, PTB, upgrades) |
-| `skills/zk-audit` | Circom sub-skill (declarative doctrine, soundness/completeness/privacy) |
-| `skills/poc-builder` | Foundry PoC + mainnet-fork construction |
-| `skills/fuzz-harness` | Invariant-driven fuzzing (Echidna/Medusa/Trident) |
-| `agents/` | Parallel lens agent templates + adversarial second-opinion template |
-| `tools/` | Per-tool strategy cards: question → evidence → blind spots |
-| `scripts/` | **Mechanized tooling**: enumerate.sh, analyze_git_security.py, ensure_foundry.sh, setup_fuzz_profile.sh, medusa/ (run_medusa.js, run_echidna.js, generate_suite.js, generate_handlers.js) |
-| `knowledge/` | Pattern memory: schema + index + **28 pattern files** across EVM/Solana/Move/ZK |
-| `evals/` | **Benchmark corpus (8 vuln + 3 clean fixtures, 4 executable PoCs) + measured results + regression-gate protocol** |
-| `templates/` | scope.md, finding.md, report.md |
-| `research/` | Research extraction reports (provenance of design decisions) |
-| `sources/` | Cloned reference repositories (provenance) |
-
-## Provenance
-
-Built from [pashov/ai-web3-security](https://github.com/pashov/ai-web3-security) — treated as a **curated index**, not a final architecture. 47 referenced repositories were cloned into `sources/` and analyzed by research agents; `research/` documents what each contributed and how contradictions were resolved.
-
-## Measured performance (29 fixtures, 2026-08-13 runs)
-
-| Corpus | Precision | Recall | Notes |
-|---|---|---|---|
-| Internal (8 vuln + 3 clean) | 8/8 = 100% | 8/8 = 100% | 4 PoC-level executable forge proofs |
-| External (11 vuln + 7 benign) | 11/11 = 100% | 11/11 = 100% | real hacks (bZx $8M, Cream $130M, Harvest $34M, Inverse $1.2M, Rari $10M, Cashio $52M) + benign traps, audited blind under neutral IDs, 7/7 benign cleared |
-| **Combined** | **19/19 = 100%** | **19/19 = 100%** | 0 false positives, 0 misses |
-| Ensemble judge | — | — | protocol + simulation on 2 candidates, correct both directions |
-
-Honest limits: external evidence is trace-level (Solana/Move toolchains unavailable here; EVM reproducers are minimal excerpts); all fixtures are small reproducers — multi-contract live protocols remain the untested frontier; ensemble is same-model until a multi-model runtime is available. `evals/README.md` defines the regression protocol.
-
-## Key design decisions
-
-1. **Master stays focused.** SKILL.md is ~90 lines of orchestration; methodology lives in `core/` loaded per phase and load-on-trigger catalogs.
-2. **Accounting-first analysis.** The primary lens is the money-map drift taxonomy — the highest-yield bug framing across sources.
-3. **Gate-first judging, adversarial second.** Deterministic kill gates → inversion pass → fresh second-opinion derivation. Consensus never substitutes for a gate.
-4. **The judge is the pashov lineage, hardened.** Four sequential gates + unprivileged-amplifier rule + impact premise ("WHO loses WHAT") + severity recalibrated from the verified path.
-5. **Mechanized tooling.** Recon (enumerate + git-security) and fuzzing (suite/handler generation, medusa/echidna runners, via_ir profile fix) run through ported, tested scripts — not ad-hoc agent code.
-6. **Knowledge layer is evidence-gated.** 28 pattern files; only validated findings and generalizable kills update them; patterns are hypotheses for closer looks, never auto-verdicts.
-7. **Every claim is measured or labeled.** Findings carry confidence + evidence level; the skill itself carries eval numbers with stated limitations.
-
-## Install
-
-Copy this directory into your agent runtime's skills directory (e.g., `~/.claude/skills/ultimate-web3-security/`). Triggers on "audit this protocol", "security review", "smart contract audit", and similar phrases.
-
-## Usage
-
-```
-Audit this protocol.                      # audits {cwd} with the standard pipeline
-Audit /path/to/repo.                      # audits a specific repo
-Audit this protocol --deep.               # + fuzz campaigns, fork tests, parallel lens agents
-Audit this protocol --quick.              # triage: single pass, no PoC/fuzz
+```text
+/path/to/auditsharingan/SKILL.md
 ```
 
-All working artifacts land in `{target}/ultimate-audit/` — the target source tree is never modified.
+The optional `agents/openai.yaml` file only provides interface metadata. Other
+harnesses can ignore it.
+
+## Run an audit
+
+Ask the harness:
+
+```text
+Use the AuditSharingan workflow at /path/to/auditsharingan to audit
+/path/to/protocol. Validate every candidate with reproducible evidence.
+```
+
+Or run the engine directly:
+
+```bash
+python3 /path/to/auditsharingan/scripts/auditsharingan.py \
+  /path/to/protocol --standard
+```
+
+Use `--quick` for triage and `--deep` to prepare source-hashed review bundles.
+The engine needs Python 3.10 or newer and has no required Python packages.
+
+## Results
+
+Artifacts are written to `TARGET/AuditSharingan-audit/` unless `--output-dir`
+is supplied.
+
+```text
+run-manifest.json  what ran, what failed, and what was available
+scope.json         source files, platforms, exclusions, and SLOC
+leads.md           machine-generated leads awaiting validation
+logs/              stdout and stderr for reproduction
+```
+
+## Checks
+
+Before publishing changes:
+
+```bash
+python3 -B scripts/release_check.py
+```
+
+## Boundaries
+
+AuditSharingan does not prove that a protocol is secure. Results depend on
+scope, compiler and tool versions, deployment state, economic assumptions, and
+the evidence completed by the reviewer. The workflow does not modify target
+source, send transactions, use live private keys, or contact external services
+without explicit authorization.
+
+## Follow
+
+- X: [@0xitsdarktoday](https://x.com/0xitsdarktoday)
+- X: [@0xscarfac3](https://x.com/0xscarfac3)
+
+## License
+
+Original AuditSharingan material is MIT licensed. Third-party files in the
+evaluation corpus keep their own license and attribution files.

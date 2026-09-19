@@ -1,6 +1,6 @@
 # Finite Monkey Engine (v3.0) — Validation & Audit Methodology Extraction Report
 
-**Source:** `/home/nishan/ultimate-web3-security/sources/finite-monkey-engine`
+**Source:** `finite-monkey-engine`
 **Scope analyzed:** root methodology docs (`README.md`, `Methdology_approach.md`, `plan.md`, `project_design.md`, `fixed_invariants.md`, `forward_diff_and_ddl.md`, `check_context.md`, `philosophy_of_monkey.md`), `docs/` refactor plans (validation, reasoning, planning, coverage repair), `src/validating/` (checker, finding_checker, processors, check_utils), `src/prompt_factory/` (validation_codex, vul_check, vul_reasoning_json, periphery, assumption_validation, vul_prompt_common), `src/reasoning/`, `src/planning/`, `src/res_processor/`, `src/dao/finding_mgr.py`, `src/codex_service.py`.
 
 ---

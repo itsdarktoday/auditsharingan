@@ -1,6 +1,6 @@
 # Cluster 3 — Validation & Judging Mechanisms: Deep Extraction Report
 
-**Scope.** This report extracts the strongest, most reusable techniques for **vulnerability VALIDATION**: judging findings, eliminating false positives, building PoCs, fuzzing/invariants, scoping/recon, and known-issue detection from 11 repositories under `/home/nishan/ultimate-web3-security/sources/`:
+**Scope.** This report extracts the strongest, most reusable techniques for **vulnerability VALIDATION**: judging findings, eliminating false positives, building PoCs, fuzzing/invariants, scoping/recon, and known-issue detection from 11 upstream repositories:
 
 `The-Judge`, `K.I.T`, `foundry-poc-mainnet-fork`, `trident-fuzz-skill`, `digger`, `finite-monkey-engine`, `scoping-bee`, `claudit`, `claude-bug-bounty`, `plamen`, `web3-skills` (contract-auditor / client-auditor / exploit-investigator).
 

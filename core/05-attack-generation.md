@@ -1,57 +1,81 @@
 # Phase 5 — Attack Generation (Hypothesis Engine)
 
-Goal: turn leads and architecture into attack hypotheses. The question is: **"Can I break it?"** Output: `{AUDIT_DIR}/hypotheses.md`.
+Goal: transform raw leads and architectural models into rigorous, executable attack hypotheses. Answer: **"Can an adversary weaponize this defect into an exploit?"** Output: `{AUDIT_DIR}/hypotheses.md`.
 
-## 5.1 Generate from architecture, not checklists
+## 5.1 Architecture-First Hypothesis Generation
 
-Do not rely exclusively on known vulnerability lists. For each lead and each ranked surface, generate hypotheses from what the code *assumes* that an adversary can *violate*.
+Do not rely on static checklists. Generate attack paths from **what the code assumes that an adversary can break**:
+- If code assumes *constant balance between calls* → test flash loans, donations, reentrancy callbacks.
+- If code assumes *oracle price equals fair value* → test spot pool sandwiching, stale heartbeat windows, cross-block skew.
+- If code assumes *caller is honest depositor* → test first-depositor inflation, zero-share mints, fee-on-transfer discrepancies.
+- If code assumes *single transaction execution* → test Sui PTB batching, multicall `msg.value` reuse, cross-function reentrancy.
+- If code assumes *transient storage is clean* → test re-entrant callbacks leaving dirty `TSTORE` state.
 
-Work the attack families systematically — as triggers, not as a recited checklist:
+## 5.2 Multi-Stage Composable Attack Graph Engine
 
-- **Logic** — incorrect state transitions, broken assumptions, missing validation, edge cases, unexpected execution paths.
-- **Access Control** — privilege escalation, authorization bypass, initialization abuse, role confusion, ownership transitions.
-- **Accounting** — incorrect balances, share inflation, rounding, precision, donation attacks, inconsistent accounting, debt tracking.
-- **Economics** — oracle manipulation, price manipulation, liquidation manipulation, collateral abuse, leverage amplification, flash-loan attacks, insolvency, fee manipulation, MEV.
-- **External Calls** — reentrancy, callbacks, malicious tokens, ERC-standard deviations, arbitrary calls, return-value assumptions.
-- **Cross-Contract** — inconsistent assumptions, state desynchronization, authorization propagation, callback chains, dependency manipulation.
-- **Cross-Chain** — message replay, ordering, validation failures, trust-boundary violations, bridge accounting, chain-specific assumptions.
-- **Upgradeability** — storage collisions, initialization, upgrade authorization, implementation replacement, proxy behavior, governance attack paths.
-- **Governance** — voting manipulation, delegation issues, quorum problems, timelock bypass, emergency powers.
-- **DoS / Griefing** — permanent locks, gas exhaustion, state bloat, attacker-controlled iteration, griefing without direct profit.
-- **Composability** — external protocols and contracts behave adversarially unless explicitly trusted.
-
-## 5.2 Hypothesis template
-
-Fill one template per serious hypothesis:
+Synthesize complete, end-to-end multi-step transaction graphs:
 
 ```
-H-id:
-Trigger:        (who calls what, with what parameters)
-Preconditions:  (state that must exist; how achievable)
-Manipulation:   (tx sequence / steps)
-Violated invariant: (INV-x)
-Impact premise: (WHO loses WHAT — one sentence; mechanisms are insufficient)
-Estimated severity: (preliminary)
-Capital:        (attacker requirements)
-Repeatability:  (once / recurring / per-user)
-Related leads:  (lead ids)
-Open questions:
+[Phase A: Capital Setup]
+   └── Flash loan from Aave/Balancer/Uniswap OR borrow protocol tokens
+[Phase B: State Priming / Invariant Distortion]
+   └── Direct donation / spot price manipulation / transient storage priming / queue insertion
+[Phase C: Trigger Exploitative Operation]
+   └── Under-collateralized borrow / skewed share mint / zero-cost liquidation / reentrant drain
+[Phase D: Unwinding & Settlement]
+   └── Reverse state manipulation / repay flash loan / route extracted profits to attacker wallet
 ```
 
-## 5.3 Economic framing (Level 6)
+## 5.3 Economic Viability & Profitability Equations
 
-For every hypothesis: attacker requirements, capital, profit/loss estimate, affected assets, affected users, protocol loss, repeatability, prerequisites. Ask: is the manipulation flash-loan feasible (same-tx atomic)? If no value extraction exists, it is griefer-only severity.
+For every financial hypothesis, compute the net exploitability equation:
 
-## 5.4 Composition framing (Level 7)
+$$\text{Net Extracted Profit} = \text{Gross Asset Extraction} - \text{Flash Loan Fees} (0.05\% - 0.09\%) - \text{DEX Swap Slippage} - \text{Total Gas Overhead}$$
 
-Can another contract, callback, bridge, oracle, token, or transaction sequence amplify it? Enumerate neighbors: fork-origin protocols, integrated pools/vaults, token bridges, keeper networks, hook callbacks.
+- If $\text{Net Profit} > 0 \rightarrow$ **PROFITABLE EXPLOIT** (Critical/High).
+- If $\text{Net Profit} \le 0$ but protocol/users suffer permanent capital loss $\rightarrow$ **INSOLVENCY / GRIEFING** (High/Medium).
+- If loss is purely self-inflicted $\rightarrow$ **SELF-HARM (REJECT)**.
+- If loss is non-loopable dust ($< \$10$) $\rightarrow$ **DUST (LOW/INFO)**.
 
-## 5.5 Prioritize
+## 5.4 Attack Hypothesis Schema
 
-Rank by expected value = P(valid) × impact × evidence availability. Assign each: **VALIDATE NOW** / **LATER** / **DROP** (with one-line reason).
+Every candidate hypothesis in `hypotheses.md` MUST fill this schema:
 
-## Output: `hypotheses.md` — sorted, template filled for each VALIDATE NOW / LATER candidate.
+```markdown
+### Hypothesis H-[ID]: [Title]
+- **Target Component:** Contract.sol :: functionName()
+- **Trigger:** (Caller type, entry point, parameters)
+- **Preconditions:** (State requirements, token whitelist, oracle conditions)
+- **Attack Steps (Concrete Graph):**
+  1. Attacker flash-borrows $X amount of Token A.
+  2. Attacker calls Contract.method1() causing state delta Δ1.
+  3. Attacker triggers Contract.method2() which reads distorted state Δ1.
+  4. Attacker extracts $Y amount of Token B.
+  5. Attacker repays flash loan and pockets $Y - $X profit.
+- **Violated Invariant:** INV-x ([Quote invariant text])
+- **Impact Premise (WHO loses WHAT):** [e.g. Existing vault depositors lose 40% of their principal due to share dilution]
+- **Capital & Tool Requirements:** [e.g. $50k flash loan, single-tx atomic]
+- **Repeatability:** [One-shot / Looped continuous drain / Per-user]
+- **Related Leads:** LEAD-xx
+- **Validation Action:** VALIDATE NOW (P0) / VALIDATE LATER (P1) / DISCARD (with reason)
+```
 
-## Exit gate
+## 5.5 Prioritization & Triage
 
-Every P0 lead has ≥1 hypothesis; economic framing is filled for the top hypotheses.
+Rank all generated hypotheses by **Exploitability Index = Probability(Valid) × Severity × Verifiability**:
+- **VALIDATE NOW:** Top candidates with complete multi-stage paths and identified financial harm.
+- **VALIDATE LATER:** Candidates requiring deep external protocol simulation or fuzzing campaigns.
+- **DISCARD:** Candidates killed by obvious, verified compiler or code-level guards (document the kill reason).
+
+## Output: `hypotheses.md`
+
+Structured file containing:
+- Complete list of prioritized attack hypotheses.
+- Step-by-step transaction graphs with parameter traces.
+- Violated invariants and quantified impact premises.
+
+## Exit Gate
+
+- Every P0/P1 lead expanded into a concrete multi-stage hypothesis.
+- Economic viability verified (WHO loses WHAT).
+- Hypotheses triaged and ranked for Phase 6 validation.

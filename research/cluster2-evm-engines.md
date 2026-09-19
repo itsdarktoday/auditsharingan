@@ -1,6 +1,6 @@
 # Cluster 2: EVM / DLT Audit Engines — Deep Extraction Report
 
-**Scope:** krait, hound, dlt-auditor, grimoire, nemesis-auditor, open-kritt, SolidityGuard, ZeroSkills, AI, defi-builder-skills (under `/home/nishan/ultimate-web3-security/sources/`).
+**Scope:** krait, hound, dlt-auditor, grimoire, nemesis-auditor, open-kritt, SolidityGuard, ZeroSkills, AI, and defi-builder-skills from the research set.
 **Focus axes:** adversarial auditing, evidence-gating, hypothesis generation, multi-agent orchestration, co-auditor patterns, threat modeling, attack-surface enumeration, finding quality over quantity.
 **Method:** read SKILL.md / README / METHODOLOGY / agent prompts / reference files per repo; all quotes verbatim.
 
@@ -549,4 +549,3 @@ No exploit verification; no severity scheme; no findings pipeline; EVM/DeFi only
 - No **cost-aware planning** (hound's exit criteria and grimoire's backpressure point at it; nobody budgets tokens per finding).
 - Weak **upgrade/diff-audit** support (slot-sleuth is the only dedicated storage-layout safety skill).
 - krait's audit-trail precondition/postcondition fields are designed for **cross-finding chain analysis** but no engine actually chains findings yet — the highest-leverage unexploited feature in the cluster.
-

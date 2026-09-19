@@ -1,0 +1,6 @@
+interface:
+  display_name: "AuditSharingan"
+  short_description: "Evidence-oriented Web3 security auditing"
+  default_prompt: "Use $auditsharingan to audit this protocol and validate every finding with reproducible evidence."
+policy:
+  allow_implicit_invocation: true

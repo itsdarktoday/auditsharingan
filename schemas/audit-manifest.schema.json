@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AuditSharingan run manifest",
+  "type": "object",
+  "required": ["schema_version", "engine", "engine_version", "generated_at", "target", "output_dir", "mode", "platforms", "scope", "steps", "overall_status", "dispatch_plan", "guarantees"],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "engine": {"const": "AuditSharingan"},
+    "engine_version": {"type": "string"},
+    "generated_at": {"type": "string"},
+    "target": {"type": "string"},
+    "output_dir": {"type": "string"},
+    "mode": {"enum": ["quick", "standard", "deep"]},
+    "platforms": {"type": "array", "items": {"type": "string"}},
+    "scope": {"type": "object", "required": ["files", "counts_by_extension", "sloc"]},
+    "steps": {"type": "array", "items": {"$ref": "#/$defs/step"}},
+    "overall_status": {"enum": ["completed", "completed_with_warnings", "failed"]},
+    "lead_register": {"type": "string"},
+    "dispatch_plan": {"type": "string"},
+    "guarantees": {"type": "object", "required": ["source_files_unchanged_by_engine", "failed_steps_are_visible", "leads_are_not_findings", "manual_evidence_chain_required"]}
+  },
+  "$defs": {
+    "step": {
+      "type": "object",
+      "required": ["name", "command", "status", "duration_seconds", "stdout_file", "stderr_file"],
+      "properties": {
+        "name": {"type": "string"},
+        "command": {"type": "array", "items": {"type": "string"}},
+        "status": {"enum": ["ok", "skipped", "failed"]},
+        "returncode": {"type": ["integer", "null"]},
+        "duration_seconds": {"type": "number"},
+        "stdout_file": {"type": "string"},
+        "stderr_file": {"type": "string"},
+        "reason": {"type": "string"}
+      }
+    }
+  }
+}

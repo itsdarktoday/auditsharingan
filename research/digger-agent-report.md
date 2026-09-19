@@ -1,6 +1,6 @@
 # Digger — Evidence-Gated Security Triage Engine: Methodology Extraction Report
 
-**Repo:** `/home/nishan/ultimate-web3-security/sources/digger` (digger-determsec/digger, Rust workspace, Apache-2.0)
+**Repo:** `digger` (digger-determsec/digger, Rust workspace, Apache-2.0)
 **Analyst note on provenance:** the request described this as "a property-based fuzzing/verification tool 'Digger' by ChainSecurity/others." The repo actually analyzed is **digger-determsec's Digger** — an "Evidence-gated security analysis for smart contracts and the agents that touch them" (`README.md`). It does *not* execute property-based fuzzing; its fuzzing surface ("Track K") is limited to *static fuzz-maturity scanning* and *fuzz artifact ingestion* (Foundry/Echidna/Medusa/Crucible failure logs), with an explicitly capped confidence ceiling. This discrepancy is itself a notable methodological finding (see §3). All quotes below are verbatim from the repo with file paths.
 
 ---

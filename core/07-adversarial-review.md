@@ -1,44 +1,62 @@
 # Phases 8–9 — Adversarial Review & Second Opinion
 
-Goal: attack every surviving candidate from the opposite direction. Output: `{AUDIT_DIR}/adversarial-review.md`.
+Goal: subject every surviving candidate to hostile disproof from an independent perspective. Output: `{AUDIT_DIR}/adversarial-review.md`.
 
-## 8.1 Inversion review — per candidate
+## 8.1 The Skeptic Inversion Mandate
 
-Assume the finding is wrong. Ask: **"How can I prove it is wrong?"** Check in order:
+The adversarial reviewer is structurally opposed to the finding's validity. The objective is: **"DISPROVE this vulnerability. Prove why this attack cannot succeed in production."**
 
-1. **Reachability** — can the vulnerable state actually exist in a live deployment? (constructor args, init flow, deployment config)
-2. **Access restrictions** — hidden validations, modifiers, role checks, internal `msg.sender` checks you missed.
-3. **Protocol invariants** — does an `INV-x` actually prevent it?
-4. **State prerequisites** — are preconditions achievable through normal usage or common token behaviors (fee-on-transfer, rebasing, blacklisting are plausible for arbitrary tokens)?
-5. **Economic feasibility** — do costs exceed gains? MEV/atomicity constraints? Flash-loan fees?
-6. **Existing mitigations** — `nonReentrant`, `SafeERC20`, checks-effects-interactions, re-entrancy guards on the actual path.
-7. **Intended behavior** — documented design tradeoff? Accepted risk? (cite the doc)
-8. **Deployment configuration** — admin/timelock config in deploy scripts changes the threat.
-9. **Upgrade configuration** — proxy admin, storage gaps, `_disableInitializers()`.
-10. **Known issues** — previous audits, bounty reports, the known-issues register (mechanism-level match).
-11. **Accepted risks** — team statements, README caveats.
+Audit across 5 inversion dimensions:
+1. **Precondition Reachability:** Can the required state actually occur in a live deployment? (Constructor parameters, proxy initialization, deployment scripts, active token lists).
+2. **Hidden Code-Level Defenses:** Look for implicit guards:
+   - Upstream bounds in parent contracts.
+   - Solidity $\ge 0.8$ arithmetic underflow/overflow reverts (e.g. recursive decrement reverting on second step).
+   - SafeERC20 / nonReentrant modifiers on inherited paths.
+   - Transient storage (`TSTORE`) resets in sibling internal calls.
+3. **Economic Self-Inconsistency:**
+   - Does the attack cost more in gas + flash-loan fees (0.09%) + DEX slippage than the extracted value?
+   - Is the extraction MEV-sandwichable by public searchers before the attacker pockets profit?
+4. **Documented Design Tradeoffs (Accepted Intent):**
+   - Is this explicit protocol behavior documented in whitepapers/README? (Cite document and line).
+5. **Attack-Your-Own-PoC (Hostile Fuzzing):**
+   - Stress-test the PoC: Change caller address, randomize deposit amounts, execute at varied block timestamps (`vm.warp`), test with 6-decimal and 18-decimal token configurations.
+   - *If the PoC survives hostile perturbation, confidence increases to 95%+.*
 
-Then **attack your own PoC**: find the input or configuration that makes the exploit fail, and test it. If the PoC survives, record that too — a PoC that survives hostile testing is much stronger evidence.
+## 8.2 Committed Invariant Defenses (Falsifiable Claims)
 
-A finding that survives adversarial review gets significantly higher confidence.
+When the skeptic asserts that an attack is blocked, it MUST commit that defense as a **falsifiable invariant assertion**:
+- `[CI-1: CONSERVATION]` — Total protocol assets cannot decrease below total user liabilities.
+- `[CI-2: REQUESTED_EQ_DELIVERED]` — The received token amount matches the requested parameter.
+- `[CI-3: APPROVE_EQ_SPEND]` — Allowances cannot be spent without approval decrement.
+- `[CI-4: NO_REVERT_AT_BOUNDARY]` — Extreme values (0, 1 wei, max) do not cause unexpected reverts.
+- `[CI-5: ROUNDTRIP]` — Immediate deposit and withdraw is strictly non-profitable.
+- `[CI-6: FRESHNESS]` — Oracle readings are guaranteed fresh within the heartbeat window.
 
-## 8.2 Second opinion (fresh derivation)
+*Rule:* If the skeptic claims a defense but cannot express it as an invariant or quote the exact code line $\rightarrow$ **Skeptic disproof FAILS; finding holds.**
 
-For each surviving candidate, re-derive it independently:
+## 8.3 Blind Second Opinion Protocol
 
-- When a multi-agent runtime is available, use the `{SKILL_DIR}/agents/second-opinion.md` template: give the reviewer ONLY the code region and the invariant claim (`INV-x`) — never your original chain. The template enforces: derive-own-path first, CONFIRM/CONTRADICT/UNKNOWN verdicts, killing evidence must be an exact line, burden of proof on the disagreeing party.
-- Single-agent fallback: perform the same fresh derivation yourself, reading only the code region + invariant claim, before comparing with your original chain.
-- Compare the derived chain with yours:
-  - **Agrees** → confidence up.
-  - **Disagrees** → the disagreeing party bears the burden of proof. No proof → that party's claim fails.
-  - **New guard discovered** → back to Phase 6 validation.
-
-Record the second-opinion outcome per candidate.
+For each surviving candidate, obtain an independent fresh derivation:
+- **Blind Context Dispatch:** Provide the second reviewer ONLY the code region, contract name, and the formal invariant claim (`INV-x`). **NEVER forward the original attacker trace, finding description, or prior agent's verdict.**
+- **Reviewer Contract:**
+  1. Derive own attack path or defense from clean code.
+  2. Return verdict: `CONFIRM` | `KILL` | `UNKNOWN`.
+  3. If `KILL`, cite the EXACT line/guard that stops the exploit.
+- **Conflict Resolution Matrix:**
+  - `CONFIRM` + `CONFIRM` $\rightarrow$ VALID (Confidence: High 90–100).
+  - `CONFIRM` + `KILL` $\rightarrow$ Candidate sent back to Phase 6 validation to test against the cited killing line.
+  - `KILL` without code-level line proof $\rightarrow$ Burden of proof unmet; `CONFIRM` wins.
 
 ## Output: `adversarial-review.md`
 
-Per candidate: inversion notes (which checks were made, which held), own-PoC attack result, second-opinion outcome (agree/disagree + proof), revised confidence.
+Structured file containing:
+- Per candidate: Inversion audit results across the 5 dimensions.
+- Committed Invariant Defense evaluations (`[CI-x]`).
+- Hostile PoC stress-test execution results.
+- Blind Second Opinion verdicts and conflict resolution notes.
 
-## Exit gate
+## Exit Gate
 
-Every candidate has inversion notes + own-PoC attack + second-opinion outcome.
+- Every candidate audited under the Skeptic Inversion Mandate.
+- PoCs hostilely tested against parameter perturbations.
+- Blind Second Opinion recorded for all Critical/High/Medium candidates.

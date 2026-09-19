@@ -1,6 +1,6 @@
 # claude-bug-bounty — Web3 Material Extraction Report
 
-**Repo:** `/home/nishan/ultimate-web3-security/sources/claude-bug-bounty`
+**Repo:** `claude-bug-bounty`
 **Scope of analysis:** `web3/*.md`, `agents/{web3-auditor,validator,report-writer,recon-ranker}.md`, `commands/arsenal.md`, `tools/{validate.py,scope_checker.py}`, `SKILL.md`, `CLAUDE.md`. General web pentest content was only consulted where triage/severity/reporting rules are shared.
 
 ---
@@ -212,8 +212,6 @@ Three layered lists: (a) Q5/Q7 of the 7-Question Gate (prior-audit acknowledged 
 | **Judge mechanism** | The 7-Question Gate (`05-triage-report-examples.md` + `validator.md`), the 6 Triager Counter-Questions, the impact-tier severity ladder, the 3-axis severity matrix, kill-signal tables per bug class, and the triager-empathy rule ("read your report as if you're a tired triager at 5pm on a Friday"). |
 
 **Preservation verdict:** The highest-value, most transferable gates are §2.1 (Bug Validation Template), §2.2 (sibling-modifier ONE RULE), §2.3 (self-kill counter-questions), §2.5 (7-Question Gate with Immunefi impact tiers), §2.12–2.13 (deterministic validate.py/scope_checker.py gates), §2.8 (3 universal patterns), and §2.9 (tiered grep triage). These should be adapted verbatim or near-verbatim; the contradictions in §3 (impact-tier vs CVSS, admin-gate context switching, HTTP-vs-Foundry evidence) must be resolved at integration time.
-
-
 
 
 

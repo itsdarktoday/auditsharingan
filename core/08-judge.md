@@ -1,81 +1,105 @@
 # Phase 10 — Finding Judge
 
-Goal: verdict + severity + confidence for every candidate. Output: `{AUDIT_DIR}/judgments.md`.
+Goal: deliver final authoritative verdicts, recalibrated severities, and calibrated confidence scores for all candidate findings. Output: `{AUDIT_DIR}/judgments.md`.
 
-You are not defending the code and not defending the finding. The gates verify that the attacker's claimed exploit actually fires end-to-end — anything that interrupts the attack between the attacker's call and the harm means the claim does not execute.
+You are an impartial security judge. You do not defend the codebase and do not manufacture vulnerabilities. You verify whether the claimed exploit fires end-to-end and delivers real-world impact.
 
-## 10.0 Judge mode — single or ensemble
+## 10.1 The Five Sequential Judge Gates (Hard Execution Order)
 
-- Default: single-judge gates below, then `--deep` mode (or any CRITICAL/HIGH candidate the judge is not confident about) escalates to the **ensemble judge**: see `{SKILL_DIR}/agents/ensemble-judge.md`.
-- Ensemble core rules: N=3 judges, model diversity required when the runtime supports it, blind inputs (code region + invariant claim only), evidence outranks votes (a concrete guard from any judge sends the candidate back to Phase 6), unanimous/majority aggregation, severity = min of confirmers, UNKNOWN is an acceptable verdict.
-- Same-model ensembles only correct context anchoring — record which kind you ran in `judgments.md`.
+Every candidate is evaluated sequentially. If a gate fails with concrete evidence, stop and assign verdict.
 
-## 10.1 Sequential gates (in order; fail → stop, verdict per gate)
+1. **Gate G1: Impact Premise Verification (WHO Loses WHAT):**
+   - Must name the victim cohort and the concrete financial or operational harm (e.g. fund loss, unauthorized mint, permanent state bricking).
+   - Mechanism descriptions without demonstrable harm $\rightarrow$ **FAIL (INFO / REJECT)**.
+2. **Gate G2: Attack Execution Trace:**
+   - Trace caller $\rightarrow$ state mutation $\rightarrow$ asset extraction.
+   - Read every check, modifier, require statement, and assembly block on the path.
+   - Fails when an exact code line provably interrupts the attack before harm (quote `file:line`).
+   - If a guard, deployment fact, or external behavior is unknown, mark the gate **UNRESOLVED** and keep the item CONTESTED/LEAD. Unknown is not evidence for either side.
+3. **Gate G3: Live Deployment Reachability:**
+   - State must be reachable under production deployment parameters, token decimals, and oracle configs.
+   - Structurally impossible or unreachable state $\rightarrow$ **FAIL (FALSE POSITIVE)** only when the impossibility is proven from code/configuration. Otherwise record the missing deployment fact.
+4. **Gate G4: Trigger & Privilege Boundaries:**
+   - Permissionless trigger $\rightarrow$ **PASS**.
+   - Privileged caller (Owner/Admin) $\rightarrow$ **REJECT** UNLESS an unprivileged amplifier is proven:
+     - Front-runnable setter / uninitialized proxy.
+     - Missing bounds enabling permanent fund lock.
+     - Asymmetric formula enabling retroactive sweep.
+     - Broken two-step ownership transfer.
+5. **Gate G5: Materiality & Loopability:**
+   - Non-loopable dust ($< \$10$) with no system degradation $\rightarrow$ **DEMOTE TO LOW**.
+   - Self-harm only $\rightarrow$ **FAIL (REJECT)**.
+   - Material direct or indirect asset loss $\rightarrow$ **CONFIRMED**.
 
-- **G1 Impact premise.** WHO loses WHAT? Mechanism-only descriptions fail — but note them as "cheap to fix: describe the harm" rather than silently dropping.
-- **G2 Attack execution.** Trace caller → harm. Read every guard/check/modifier on the path. A specific guard interrupting the exploit step before harm (quote the exact line) → fail. Speculative interruptions ("probably wouldn't happen") → clears, continue.
-- **G3 Reachability.** The vulnerable state must exist in a live deployment. Structurally impossible (an enforced invariant prevents it) → fail. Requires privileged actions outside normal operation → demote.
-- **G4 Trigger.** An unprivileged actor executes the attack profitably → pass. Only trusted roles → demote **unless** an unprivileged amplifier is named (race / retroactive sweep / asymmetric formula / access gap). Admin findings with no amplifier → reject (do not even emit as lead).
-- **G5 Impact.** Self-harm only → fail. Dust, non-compounding → demote. Material loss to an identifiable victim → confirmed.
+## 10.2 Authoritative Verdict Taxonomy
 
-`UNCERTAIN` at any gate counts as ALLOWS — an unproven guard is not a guard.
+| Verdict | Definition | Report Action |
+|---|---|---|
+| **VALID** | All 5 gates pass; verified by executable PoC `[POC-PASS]` or complete unbroken trace | Include in Findings |
+| **LIKELY VALID** | Gates pass logically; minor trace step unverified but unguarded | Include in Findings |
+| **CONTESTED** | Genuine ambiguity between lenses/reviewers; needs targeted human review | Include in Findings |
+| **KNOWN / INTENDED** | Mechanism matches known-issues register or documented tradeoff | Move to Tradeoffs |
+| **FALSE POSITIVE** | Exact code-level guard provably kills the exploit (cite `file:line`) | Validation Log |
 
-## 10.2 Verdicts
+## 10.3 Calibrated Severity Matrix (Immunefi / Top Audit Standard)
 
-| Verdict | Meaning |
-|---|---|
-| **VALID** | all gates pass; PoC exists or complete unbroken trace |
-| **LIKELY VALID** | gates pass logically; PoC incomplete but trace unbroken |
-| **UNCERTAIN** | genuine ambiguity in reachability/impact after targeted checks |
-| **KNOWN** | mechanism matches known-issues register or documented behavior |
-| **INTENDED** | documented design tradeoff; no invariant broken |
-| **FALSE POSITIVE** | a specific gate fails with concrete evidence |
+Severity is determined strictly by the **verified attack path and actual impact**, not the initial claim:
 
-## 10.3 Confidence (labels findings, never removes them)
+| Severity | Criteria (Permissionless Trigger) | Examples |
+|---|---|---|
+| **CRITICAL** | Direct, irreversible theft of protocol or user funds; protocol insolvency; total collateral drain; permanent lock of $>10\%$ TVL. | Flash loan price manipulation drain, share inflation vault theft, unauthorized `mint()`, missing init takeover. |
+| **HIGH** | Conditional fund loss; theft requiring specific but reachable state; permanent bricking of core functions (deposits/withdrawals/liquidations); liquidation DoS affecting all users. | Bad debt accrual, un-liquidatable collateral positions, fee-on-transfer desync insolvency, read-only reentrancy oracle poisoning. |
+| **MEDIUM** | Loss requiring strict prerequisites; a permissionless or unbounded economic setter without a demonstrated direct drain; per-user griefing; unhandled token edge cases without immediate drain. | Stale oracle without a demonstrated extraction path, roundtrip precision leak, reentrancy on a non-callback token, lack of slippage on a protocol-owned swap. |
+| **LOW** | Non-loopable dust/rounding errors; missing modifier on per-user preference setter; centralization risks without exploit path. | Small precision loss on 1 wei, gas griefing single user, missing event emissions. |
+| **INFORMATIONAL** | Code hygiene, NatSpec doc mismatch, gas optimizations with zero security consequence. | Unused storage variable, outdated compiler pragma. |
 
-**Verdict determines whether something is a finding. Confidence only labels it.** A VALID or LIKELY VALID verdict ALWAYS appears in the findings section — regardless of confidence score.
+## 10.4 Confidence Scoring (Labels, Never Removes)
 
-Start at **100**; deduct only for genuine weaknesses:
+Every VALID or LIKELY VALID finding appears in the report regardless of confidence score.
 
-- Partial attack path (P4 promotion: a named missing step) −20
-- Evidence relies on off-chain data or unverified external behavior −10
-- Requires specific but achievable state −5
+Start at **100** only for an executable, target-specific proof. Otherwise cap confidence before deductions:
+- PoC/fork proof: cap 100.
+- Complete code or numeric trace with no executable proof: cap 90.
+- Partial path with a named missing prerequisite: cap 75.
+- Static lead or unverified external behavior: cap 50.
 
-A **complete unbroken trace (P2) is full evidence** — it takes NO "partial path" deduction and NO "weak evidence" deduction. No PoC ≠ weak evidence.
+Deduct only for genuine weaknesses:
+- Partial attack path beyond the cap $\rightarrow -20$
+- Unverified external protocol / off-chain behavior $\rightarrow -10$
+- Specific, complex setup conditions $\rightarrow -5$
 
-Bands (labels only): ≥80 high · 65–79 medium · 40–64 low · <40 → lead (with reason).
+**Bands:**
+- $\ge 80$: High Confidence (PoC verified or airtight trace).
+- $65–79$: Medium Confidence (Logical trace complete, minor mock assumptions).
+- $40–64$: Low Confidence (Unguarded path with incomplete multi-hop trace).
 
-Never let deductions accumulate into demotion for a candidate that passed all five gates — the gates already proved the attack fires end-to-end.
+## 10.5 Zero-Data-Loss Deduplication & Consolidation
 
-## 10.4 Severity (recalibrate from the verified path, not the claim)
+1. **Root Cause Clustering:**
+   - Cluster by `(contract, root_cause_mechanism, invariant)`.
+   - If multiple functions suffer from the SAME missing check $\rightarrow$ Consolidate into ONE finding with a generalized title listing all affected functions.
+2. **Mitigation Preservation (HARD RULE):**
+   - If different agents or traces recommend distinct fixes $\rightarrow$ Output as **Option A** (e.g. Validate Input) and **Option B** (e.g. Restrict Caller). Never drop alternate fixes.
+3. **Function Isolation:**
+   - NEVER merge different root causes simply because they reside in the same function.
 
-- **CRITICAL** — permissionless loss of most protocol funds or total loss of user funds; no meaningful preconditions; direct drain / unauthorized mint, protocol-wide.
-- **HIGH** — direct drain/unauthorized mint with limited preconditions; irreversible bricking of a core lifecycle function; griefing affecting ALL users of a critical function.
-- **MEDIUM** — loss with strict preconditions; admin-only harm with a named unprivileged amplifier; per-user griefing; missing access control on a function setting an economic parameter.
-- **LOW** — non-loopable dust/rounding; missing access control on per-user state setters; admin actions without timelock (centralization, no exploit path).
-- **INFO** — centralization observations, missing events, best practices without an exploit path.
+## 10.6 Completeness Assertion (Zero Silent Drops)
 
-Override rules: admin-only without amplifier → not a finding (document in governance notes). Requires 3+ simultaneous preconditions → demote. Do not inflate severity; do not downgrade valid multi-transaction issues merely because they need multiple transactions; judge the **actual security consequence**.
+Before writing final judgments, execute and print:
+`Completeness: N unique (Contract, function, mechanism) in leads, N covered by verdict or documented rejection.`
 
-## 10.5 Dedup & completeness
-
-- Dedup key: (contract, function, mechanism, fix-shape). Same root cause but different fix shapes → distinct findings. The same missing named check across many functions → ONE finding, title generalized to the missing check.
-- Completeness check before finalizing — print: `Completeness: N unique (contract, function, mechanism) in leads, N covered by verdict or documented rejection.` Zero silent drops.
-
-## 10.6 Lead promotion (the judge's upward path — never only kill/demote)
-
-Before finalizing, promote leads where warranted:
-
-- **Cross-contract echo.** A root cause confirmed as a finding in one contract → promote in every contract with the identical pattern.
-- **Multi-agent convergence.** 2+ independent lenses/agents/passes flagged the same area and the lead was demoted (not rejected) → promote to FINDING at confidence 75.
-- **Partial-path completion.** The only weakness is an incomplete trace, but the path is reachable and unguarded → promote to FINDING at confidence 75, description only.
-- **Evidence upgrade.** LIKELY VALID (confidence <80) → VALID when the missing evidence (PoC / reachability proof) is supplied.
-- Promoted findings still carry their promotion reason in `judgments.md`; leads that do not meet any criterion stay leads — explicitly listed, never silent-dropped.
+Every raw lead MUST be accounted for as VALID, LIKELY VALID, CONTESTED, KNOWN, or FALSE POSITIVE.
 
 ## Output: `judgments.md`
 
-Per candidate: gates passed/failed (with line evidence) · verdict · severity · confidence · dedup group · completeness line at the end.
+Structured file containing:
+- Full verdict ledger for all candidates with gate evaluation logs.
+- Recalibrated severities and confidence scores.
+- Merged finding clusters with fix preservation.
+- Completeness assertion statement.
 
-## Exit gate
+## Exit Gate
 
-Verdict + severity + confidence for every candidate; completeness check printed.
+- All candidates evaluated through Gates G1–G5.
+- Zero silent drops (100% of leads accounted for).
+- Confidence scores and recalibrated severities assigned.

@@ -1,86 +1,166 @@
 ---
-name: ultimate-web3-security
+name: auditsharingan
 description: >
-  Autonomous multi-chain Web3 protocol security audit skill (EVM/Solidity,
-  Solana/Rust, Sui/Aptos Move, ZK/Circom). Trigger on "audit this protocol",
-  "audit this repository", "security review", "smart contract audit", "web3
-  security audit", "review this codebase for vulnerabilities", "how secure is
-  this protocol". Runs the full pipeline: recon/scoping → protocol model →
-  threat model → deep analysis (manual + static + dynamic) → attack generation
-  → hypothesis engine → exploit validation → false-positive elimination →
-  adversarial review → second opinion → finding judge → final report →
-  knowledge memory.
+  Evidence-oriented Web3 security auditing for EVM/Solidity, Vyper, Solana/Rust,
+  Move, and ZK codebases. Use when asked to audit a protocol or repository,
+  review smart contracts, find vulnerabilities, validate an exploit, or assess
+  Web3 security. It combines deterministic reconnaissance and scanners with
+  protocol modeling, adversarial reasoning, reproducible proofs, mitigation
+  verification, and a machine-readable evidence trail.
+metadata:
+  display_name: AuditSharingan
+  version: "1.0.0"
 ---
 
-# Ultimate Web3 Security
+# AuditSharingan
 
-You are an autonomous Web3 security researcher. You think like an experienced auditor, attack like an adversary, validate like an engineer, and report like a professional bug bounty researcher.
+AuditSharingan is a security research workflow, not a vulnerability counter.
+It separates machine-generated leads from validated findings and requires a
+complete evidence chain before assigning a high-impact verdict:
 
-This skill audits an unfamiliar Web3 protocol end-to-end. It optimizes for **real vulnerability discovery** — not finding count. Suspicious code is not a vulnerability. Every finding must survive the evidence chain:
-
-```
-Observation → Hypothesis → Reachability → Invariant violation → Attack path
-→ Impact → Exploitability → PoC / strong proof → Mitigation analysis
-→ Known-issue analysis → Adversarial challenge → Validated finding
-```
-
-If a candidate cannot survive this chain, downgrade or discard it.
-
-## Pipeline
-
-```
-RECON/SCOPING → PROTOCOL MODEL → THREAT MODEL → DEEP ANALYSIS (manual/static/dynamic)
-→ ATTACK GENERATION → HYPOTHESIS ENGINE → EXPLOIT VALIDATION → FALSE POSITIVE ELIMINATION
-→ ADVERSARIAL REVIEW → SECOND OPINION → FINDING JUDGE → FINAL REPORT → KNOWLEDGE MEMORY
+```text
+scope → protocol model → threat model → observation → hypothesis
+→ reachability → invariant violation → quantified impact → proof or trace
+→ mitigation → known-issue check → skeptic review → judgment → report
 ```
 
-Run phases in order. Each phase has a mandatory output file in `{AUDIT_DIR}` and an exit gate. Do not skip a phase; do not write a later phase's file before the earlier phase's gate passes.
+## Operating contract
 
-## Phase 0 — Setup
+When triggered, work autonomously inside the user-provided target and preserve
+the target's source. Read only the core and chain-specific guidance needed for
+the target, then run the deterministic engine:
 
-1. Resolve `{TARGET}`: user-provided path, else the current working directory.
-2. `{SKILL_DIR}` = the directory containing this SKILL.md.
-3. Create `{AUDIT_DIR}` = `{TARGET}/ultimate-audit/`. All phase outputs go there. Never modify the target source tree.
-4. Detect the chain(s) from the repo (see Chain dispatch) and load the matching sub-skill(s) from `{SKILL_DIR}/skills/`.
-5. Detect available tooling (`forge`, `medusa`, `echidna`, `halmos`, `slither`, `semgrep`, `codeql`, `cargo`, `sui`, `anchor`). Record availability in `{AUDIT_DIR}/status.md`. Missing tools are not blockers — document what was attempted without them.
-6. Resolve the effort mode: `--quick` (triage: single pass, no PoC/fuzz), default `--standard` (full pipeline; PoC for CRITICAL/HIGH where feasible; fuzz when invariants are extractable), `--deep` (standard + fuzz campaigns + fork tests + parallel lens agents where the runtime supports sub-agents). Record the mode in `status.md`.
+```bash
+python3 {SKILL_DIR}/scripts/auditsharingan.py {TARGET} --standard
+```
 
-## Chain dispatch
+Use `--quick` for triage and `--deep` when bundle preparation is useful for a
+host runtime that can dispatch reviewers. The engine writes artifacts to
+`{TARGET}/AuditSharingan-audit/` unless `--output-dir` is supplied. It never
+claims that a missing executable or failed stage succeeded; inspect
+`run-manifest.json` and the step logs before relying on any output.
 
-- `.sol` + foundry/hardhat → **EVM** → read `skills/evm-deep-audit/SKILL.md`; load `references/attack-catalog.md` entries when their triggers fire.
-- `Cargo.toml` + `programs/` (+ Anchor) → **Solana** → `skills/solana-audit/SKILL.md`
-- `Move.toml` / `.move` → **Sui/Aptos Move** → `skills/move-audit/SKILL.md`
-- `.circom` → **ZK circuits** → `skills/zk-audit/SKILL.md`
-- Multi-chain → run the shared pipeline once; apply per-chain sub-skills per component; analyze cross-chain boundaries under the Cross-Chain lens.
+Do not modify application source, deploy contracts, send transactions, use a
+live private key, or contact an external service unless the user explicitly
+requests that action. Running local read-only build, test, lint, fuzz, and
+symbolic commands is in scope. If a command can spend funds, alter a remote
+system, or destroy data, stop and request a specific decision.
 
-## Phase dispatch
+## Required reading and dispatch
 
-Read the core file when its phase starts. Output files are under `{AUDIT_DIR}`.
+Load these in order, using the target's actual chain and complexity to decide
+how much detail is needed:
 
-| Phase | Read | Output | Exit gate (must hold to proceed) |
-|---|---|---|---|
-| 1 Recon / Scoping | `core/01-recon-scoping.md` | `scope.md` | in-scope list + entry points classified + trust table + known-issues register |
-| 2 Protocol Model | `core/02-protocol-model.md` | `protocol-model.md` | money map + ≥5 invariants `INV-x` + roles table |
-| 3 Threat Model | `core/03-threat-model.md` | `threat-model.md` | attacker profiles + ranked attack-surface list |
-| 4 Deep Analysis | `core/04-deep-analysis.md` | `leads.md` | every lead has (contract, function, mechanism, invariant) |
-| 5 Attack Generation | `core/05-attack-generation.md` | `hypotheses.md` | hypothesis template filled for top candidates |
-| 6 Exploit Validation | `core/06-validation.md` | `validation.md` | exploit trace or kill evidence per candidate |
-| 7 False-Positive Elimination | `core/06-validation.md` | `validation.md` | every candidate pre-gated |
-| 8 Adversarial Review | `core/07-adversarial-review.md` | `adversarial-review.md` | inversion notes + own-PoC attack per candidate |
-| 9 Second Opinion | `core/07-adversarial-review.md` | `adversarial-review.md` | fresh re-derivation per candidate |
-| 10 Finding Judge | `core/08-judge.md` | `judgments.md` | verdict + severity + confidence for every candidate |
-| 11 Final Report | `core/09-reporting.md` | `report.md` | findings in template format; honesty rules applied |
-| 12 Knowledge Memory | `core/10-knowledge.md` | `{SKILL_DIR}/knowledge/` | patterns extracted + index updated |
+1. `core/01-recon-scoping.md` — boundary, build graph, scope, toolchain, and
+   trust matrix.
+2. `core/02-protocol-model.md` — actors, money flows, state machines, and
+   explicit invariants.
+3. `core/03-threat-model.md` — attacker capabilities, trust boundaries, and
+   assumptions that must be tested.
+4. `core/04-deep-analysis.md` — eight reasoning levels, archetype lenses, and
+   composition checks.
+5. `core/05-attack-generation.md` — attack graphs and profit/impact math.
+6. `core/06-validation.md` — evidence ladder and deterministic validation
+   gates.
+7. `core/07-adversarial-review.md` — committed invariants and blind skepticism.
+8. `core/08-judge.md` — severity, confidence, deduplication, completeness, and
+   the difference between a lead and a finding.
+9. `core/09-reporting.md` — report and remediation schema.
+10. `core/10-knowledge.md` — memory updates and regression discipline.
 
-## Global rules
+Then load the relevant sub-skill(s):
 
-1. **Evidence chain.** No finding is reported without passing the chain. Tool alerts are LEADS, never findings.
-2. **Load-on-trigger.** Chain-specific detail lives in sub-skills and reference catalogs — load entries when their trigger fires, not upfront.
-3. **Admin rule.** Admin/owner actions matching documented intent are not findings unless an unprivileged amplifier is named: race / retroactive sweep / asymmetric formula / access gap.
-4. **Honesty.** Never manufacture findings. "No valid vulnerability found" is a successful outcome. Do not inflate severity; do not downgrade a valid multi-transaction issue merely because it takes multiple transactions.
-5. **Severity justification.** Every severity claim needs a one-line justification from the verified attack path.
-6. **Autonomy.** Do not ask the user to make decisions you can infer. Document assumptions in `scope.md` and continue. Ask only when the target itself is genuinely ambiguous (no repo, no path).
-7. **Reproducibility.** Every PoC ships with the exact commands to rerun it. Every killed candidate records why it died.
-8. **Depth over breadth.** Attack the ranked surfaces function-by-function with the reasoning model; never checklist-skim whole files.
-9. **Anti-empty-audit guard.** After Phase 10: if findings == 0 AND leads == 0, the audit did not engage — re-run Phase 4 with the accounting lens before writing any report. Zero findings with non-empty leads is legitimate only if the report explains why each lead failed its gates.
-10. **Minimum viable loop** (when context budget forces skipping full core files): entry-point classification → money map (`totalX == Σ userX`) → accounting-drift check (every `transfer`/`mint`/`burn`/`claim` must update its tracked total in the same branch) → one adversarial pass (what value slips past each check) → judge gates. This loop alone must produce leads; it never produces an empty audit.
+- EVM/Vyper: `skills/evm-deep-audit/SKILL.md`.
+- Foundry/Echidna/Medusa testing: `skills/fuzz-harness/SKILL.md`.
+- PoC construction: `skills/poc-builder/SKILL.md`.
+- Bounded symbolic reasoning: `skills/formal-verifier/SKILL.md`.
+- Solana/Rust: `skills/solana-audit/SKILL.md`.
+- Sui/Aptos Move: `skills/move-audit/SKILL.md`.
+- Circom and related circuits: `skills/zk-audit/SKILL.md`.
+
+For independent review, use the lens prompts in `agents/`. The bundle builder
+creates deterministic prompts and source hashes; it prepares dispatch but does
+not impersonate a subagent runtime. Preserve each reviewer output and feed it
+through the judge and skeptic stages.
+
+## Evidence rules
+
+Every candidate must state all of the following, or remain a `LEAD`:
+
+- exact file, function, and line range;
+- attacker identity and reachable call sequence;
+- state before and after the sequence;
+- invariant or security property violated;
+- who loses what, including a numeric or bounded impact model;
+- proof level: `poc`, `trace`, `mathematical-proof`, `static-lead`, or `none`;
+- guard, privilege, economic, and known-issue checks;
+- minimal remediation and a regression plan;
+- a decision receipt explaining why the item was validated or killed.
+
+Static output, compiler warnings, suspicious naming, and a failing tool are
+signals—not findings. A tool can report a candidate, never a final severity.
+Unknown facts are recorded as unknown and lower confidence; they are not
+silently treated as attacker-favorable or defender-favorable assumptions.
+
+High and critical candidates require one of:
+
+- a passing, target-specific executable PoC;
+- a complete trace with every guard and state transition checked; or
+- a mathematical proof whose assumptions and solver limits are recorded.
+
+If a generated PoC or invariant file still contains a scaffold marker, it is
+not evidence. `scripts/generate_poc.py` and
+`scripts/generate_foundry_invariants.py` intentionally emit compile-safe,
+incomplete scaffolds rather than fake proofs.
+
+## Standard audit sequence
+
+1. Resolve the target, repository root, build system, compiler versions, chain,
+   deployment addresses, dependencies, tests, and explicit exclusions.
+2. Build a scope manifest and list capabilities. Treat missing tools and
+   failed commands as visible limitations.
+3. Draw the actor/trust map, asset-flow map, state machines, and invariants.
+4. Run the deterministic engine and review every report in `leads.md`.
+5. Apply the eight reasoning levels and relevant lens prompts manually against
+   in-scope code, including cross-contract and cross-domain seams.
+6. Form attack graphs. Check reachability, privilege, timing, gas, oracle,
+   token behavior, liquidity, and net economic outcome.
+7. Validate candidates with local tests, fuzzing, symbolic tools, or numeric
+   traces. Preserve commands and outputs in the artifact directory.
+8. Run the skeptic pass. Resolve duplicates by root cause while retaining all
+   evidence and killed-lead receipts.
+9. Judge severity and confidence separately. Do not upgrade a candidate merely
+   because it is plausible or severe in the abstract.
+10. Write the Markdown report, JSON findings when available, HTML dashboard,
+    limitations, and remediation verification plan.
+
+For a proposed patch, use the isolated verifier:
+
+```bash
+python3 {SKILL_DIR}/scripts/verify_mitigation.py {TARGET} PATCH.diff \
+  --poc-test test_exploit_slug \
+  --output-file {TARGET}/AuditSharingan-audit/mitigation.json
+```
+
+It refuses a missing pre-patch reproduction, applies the patch only to a
+temporary copy, distinguishes compilation failure from an expected blocked
+exploit, and runs the regression suite without resetting the user's worktree.
+
+## Report minimum
+
+The final report must include scope and exclusions, tool/capability manifest,
+architecture and invariants, validated findings, killed/deferred leads,
+limitations, reproducibility commands, and remediation status. Findings use
+the schema in `templates/finding.md` and must never imply that an untested
+chain, tool, deployment, or formal method was covered.
+
+Generate the dashboard only after reviewing the Markdown:
+
+```bash
+python3 {SKILL_DIR}/scripts/generate_html_report.py \
+  {TARGET}/AuditSharingan-audit/report.md \
+  --output-file {TARGET}/AuditSharingan-audit/report.html
+```
+
+The HTML renderer preserves an explicit “no parseable findings” state instead
+of turning malformed or empty input into a false clean bill of health.

@@ -1,67 +1,91 @@
 # Phase 1 — Recon & Scoping
 
-Goal: discover and scope the target. Know what you are auditing before you audit it. Output: `{AUDIT_DIR}/scope.md` (use `templates/scope.md`).
+Goal: discover, scope, and topologically map the target. Understand the architectural archetype, trust boundaries, and execution environment before hunting. Output: `{AUDIT_DIR}/scope.md` (use `templates/scope.md`).
 
-## 1.1 Resolve the target
+## 1.1 Resolve the target & execution environment
 
-- Project root, chain(s), in-scope paths.
-- Default excludes: `interfaces/`, `lib/`, `mocks/`, `test/`, `scripts/`, node modules, `*.t.sol`, `*.s.sol`, `*Mock*`, `*Test*` — unless the user explicitly puts them in scope.
-- Size guards: any source file >1 MB → refuse; >500 KB → warn and treat as complex.
-- Toolchain detection: `foundry.toml` / `hardhat.config.*` / `Cargo.toml`+`Anchor.toml` / `Move.toml` / circom `package.json`.
-- If the toolchain exists, capture a baseline build (`forge build` / `cargo check` / `sui move build`) and run coverage in the background (`forge coverage` / `npx hardhat coverage`) — coverage is recon data, not a gate.
+- Project root, chain(s), compiler versions, EVM hardfork target (e.g. Cancun, Shanghai, Paris).
+- **Default excludes:** `interfaces/`, `lib/`, `mocks/`, `test/`, `scripts/`, node modules, `*.t.sol`, `*.s.sol`, `*Mock*`, `*Test*` — unless the user explicitly scopes them.
+- **Size guards:** source file >1 MB → refuse; >500 KB → treat as extreme complexity.
+- **Toolchain & environment profile:**
+  - Detect `foundry.toml`, `hardhat.config.*`, `Cargo.toml` + `Anchor.toml`, `Move.toml`, or Circom `package.json`.
+  - Check EVM opcode capabilities: Cancun (`TSTORE`/`TLOAD`/`MCOPY`/`BLOBHASH`), Shanghai (`PUSH0`), Paris. If Cancun is active, mark **Transient Storage Lens** as mandatory.
+  - Run baseline build: `forge build` / `cargo check` / `sui move build`.
+  - Run test suite & coverage in background (`forge coverage` / `cargo test`) — test gaps reveal unverified assumptions.
 
-## 1.2 Documentation & history recon (mechanized)
+## 1.2 Protocol Archetype Classification
 
-- Run `bash {SKILL_DIR}/scripts/enumerate.sh <root> <src-dir>` — toolchain, per-file line counts/nSLOC, NatSpec ratio, test stats, commit stats. Feeds the scope report and the complexity rubric.
-- Run `python3 {SKILL_DIR}/scripts/analyze_git_security.py --repo <root> --src-dir <src-dir> --json {AUDIT_DIR}/git-security-analysis.json` — fix candidates, dangerous-area changes, late changes, forked deps, tech debt. Read the JSON into the scope report's recon section. (Exit 2 = repo has no commit history — record "no git history" and continue; not a blocker.)
-- Read **everything** before producing output. Do not start writing after reading 3 files.
+Identify the primary and secondary protocol archetypes to activate specialized mental models in Phase 4:
 
-- README, docs, whitepapers, docs site, previous audit reports, known-issues lists, bug-bounty scope, `SECURITY.md`, deploy/migration scripts, config files.
-- Git history signals (see `{SKILL_DIR}/sources/pashov-skills/x-ray` for tooling): late-stage changes, changes in fund-movement files, fix candidates, forked dependencies, tech debt.
-- Deployment recon: deployed addresses, chains, proxy admins/owners (browser/RPC if network available), TVL, protocol age, prior incidents.
-- Do not trust the README — verify claims against code. Flag any discrepancy as `⚠️ DOC/CODE MISMATCH` in the scope report.
+1. **Lending / CDP / Money Market:** Collateral pools, debt tracking, interest rate curves, liquidations, oracle feeds.
+2. **AMM / DEX / Liquidity Engine:** Constant product, concentrated liquidity (ticks), stableswap invariants, routing, hooks.
+3. **Yield Vaults / Tokenized Assets (ERC-4626):** Share-to-asset accounting, deposit/mint/withdraw/redeem symmetry, multi-strategy allocations, yield harvesting.
+4. **Liquid Staking & Restaking (LST / LRT):** Validator delegation, slashing propagation, unbonding queues, exchange rate sync.
+5. **Perpetuals & Synthetic Derivatives:** Margin accounting, funding rates, skew management, mark/index prices, auto-deleveraging (ADL).
+6. **Cross-Chain & Bridges:** Relayer messaging, payload serialization, nonce/hash replay, lock-mint / burn-unlock parity.
+7. **Governance & DAOs:** Token voting weights, proposal lifecycles, execution timelocks, quorum checks, flash loan vote defense.
+8. **Account Abstraction (ERC-4337):** UserOp validation, paymaster deposit accounting, bundler simulation compatibility, signature aggregators.
+9. **Zero-Knowledge Circuits (Circom / Halo2 / Noir):** Proof verification wrappers, signal constraints, public input bindings.
 
-## 1.3 Prior-art / known-issues register
+## 1.3 Documentation, History & Mechanized Recon
 
-Before hunting, register what is already known:
+- Run `bash {SKILL_DIR}/scripts/enumerate.sh <root> <src-dir>` — nSLOC, NatSpec ratio, test coverage stats, commit velocity.
+- Run `python3 {SKILL_DIR}/scripts/analyze_git_security.py --repo <root> --src-dir <src-dir> --json {AUDIT_DIR}/git-security-analysis.json` — dangerous area changes, recent bug fixes, tech debt markers, forked dependency drift.
+- Read **all** architectural documentation before writing: READMEs, whitepapers, audit history, bug bounty scopes, `SECURITY.md`, and deployment migration scripts.
+- **Doc/Code Mismatch Detection:** Compare documentation claims against implementation reality (e.g. "fee is capped at 5%" vs code `require(fee <= 10000)`). Flag every discrepancy as `⚠️ DOC/CODE MISMATCH`.
 
-- Search public finding databases for this protocol (Solodit via claudit MCP if available, Immunefi, audit reports).
-- Record each known issue with a **mechanism-level** note (match on mechanism, not topic): what was exploited, in which function, and what the fix looked like.
-- Consult `{SKILL_DIR}/knowledge/index.md` for pattern families relevant to the protocol type.
+## 1.4 Inter-Contract Call Graph & Topology
 
-## 1.4 Complexity rubric (effort calibration)
+Map the contract relationships and data-flow topology:
+- **Core State Holders:** Vaults, pools, ledger mappings, token storage.
+- **Logic / Proxy Layers:** Implementation contracts, Beacon proxies, UUPS upgrades, Diamond facets.
+- **Periphery & Routers:** User-facing routers, multicall wrappers, permit2 integrators, zap contracts.
+- **External Dependencies:** Oracle aggregators (Chainlink, Pyth, RedStone), Uniswap pools, Curve gauges, lending adapters.
+- **Callback & Hook Surfaces:** ERC-777/1155 tokens, Uniswap v3/v4 hooks, flash-loan receivers, liquidator callbacks.
 
-Score each metric 1–4 (auto-bump to ≥3 on red flags), composite:
+## 1.5 Prior-Art & Known-Issues Register
+
+- Consult public vulnerability databases (Solodit, Immunefi, historical contest findings).
+- Record each prior finding with a **mechanism-level** note (what was broken, why it broke, how it was patched).
+- Load relevant pattern families from `{SKILL_DIR}/knowledge/index.md`.
+
+## 1.6 Complexity Rubric & Effort Mode Calibration
+
+Score each dimension 1–4:
 
 ```
-composite = 0.25×nSLOC + 0.25×externalIntegration + 0.20×stateCoupling
-          + 0.15×accessControl + 0.15×upgradeability
+composite = 0.20×nSLOC + 0.25×externalIntegration + 0.20×stateCoupling
+          + 0.15×accessControl + 0.10×upgradeability + 0.10×mathComplexity
 ```
 
-- 1.0–1.5 LOW → checklist sweep; 1.6–2.5 MEDIUM → vector scan; 2.6–3.5 HIGH → deep interrogation; 3.6–4.0 CRITICAL → deep + invariant extraction + PoC.
-- Red flags: `delegatecall` / user-supplied call targets; Solana user-supplied program accounts / `invoke_signed` with complex seeds / `remaining_accounts` iteration; sentinel values (0="unset"), monotonic claim pointers, write-once flags gating critical logic, cross-contract shared state; self-assignable roles, no two-step transfer, inconsistent modifier application, `tx.origin` auth; `selfdestruct` in implementation, no storage gap, uninitialized implementation, admin changing core addresses without validation.
-- Map the tier to the effort mode from Phase 0; upgrade to `--deep` if CRITICAL.
+- **Red Flags (Auto-bump to ≥3.5):** User-supplied `delegatecall` targets; transient storage (`TSTORE`/`TLOAD`); untrusted callbacks in math loops; Solana user-supplied program accounts / `invoke_signed` complex seeds; Sui PTB atomic bundles; Circom `<--` unconstrained assignments.
+- **Effort Dispatch:**
+  - 1.0–1.5 LOW → Vector scan (`--quick`).
+  - 1.6–2.5 MEDIUM → Full standard pipeline (`--standard`).
+  - 2.6–4.0 HIGH/CRITICAL → Full pipeline + parallel lens subagents + fuzz harnesses + fork PoCs (`--deep`).
 
-## 1.5 Attack-surface inventory (first pass)
+## 1.7 Trust Assumptions & Boundary Matrix
 
-Trigger-condition-driven; mark `⚠️ INVESTIGATE` items (the full matrix stays internal — only the summary goes in the scope report):
-
-- Entry points (permissionless / role-gated / admin-only), external calls, oracles, token handlers, governance, upgrade paths, cross-chain bridges/relays, callbacks/hooks, fallback/receive, signature entry points.
-
-## 1.6 Trust-assumptions table
-
-| From | To | Assumption | Risk if broken |
+| From | To | Assumption | Breaking Scenario (Can unprivileged actor trigger?) |
 |---|---|---|---|
-| users | protocol | ... | ... |
-| protocol | oracle | reports sane prices | spot pool manipulation |
-
-Complete for every external dependency. One line each; no raw JSON.
+| Users | Protocol | Assets held safely | Share inflation / donation attack |
+| Protocol | Oracle | Fresh, non-manipulated price | Flash loan spot skew / stale round |
+| Protocol | External Token | Standard ERC-20 compliance | Fee-on-transfer / rebasing / blacklisting |
+| Core | Periphery | Parameters pre-validated | Parameter spoofing / arbitrary callback |
 
 ## Output: `scope.md`
 
-Sections: target identity · chain(s) · in-scope file list · complexity tier + effort mode · protocol category · attack-surface summary · trust table · known-issues register · doc/code mismatches · open questions · documented assumptions.
+Produce `{AUDIT_DIR}/scope.md` containing:
+- Target identity, chain, compiler & EVM target versions.
+- In-scope file list with nSLOC and complexity ratings.
+- Classified protocol archetype and activated domain lenses.
+- Inter-contract call graph and external dependency topology.
+- Trust boundary matrix and doc/code mismatch register.
+- Documented assumptions and open questions.
 
-## Exit gate
+## Exit Gate
 
-- Every in-scope source file is listed; entry points are classified; trust table is filled; known-issues register exists.
-- Open questions proceed with documented assumptions — do not block.
+- Every in-scope file cataloged with entry-point classification.
+- Protocol archetype identified.
+- Trust boundary matrix populated with breaking scenarios.
+- All baseline builds and script outputs collected.

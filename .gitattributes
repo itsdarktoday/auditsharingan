@@ -1,0 +1,18 @@
+* text=auto eol=lf
+*.md text
+*.py text eol=lf
+*.sh text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.sol text eol=lf
+*.vy text eol=lf
+*.rs text eol=lf
+*.move text eol=lf
+*.circom text eol=lf
+*.nr text eol=lf
+*.cairo text eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary

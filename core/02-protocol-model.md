@@ -1,62 +1,88 @@
 # Phase 2 — Protocol Model
 
-Goal: understand the architecture; extract assets, roles, and invariants. Output: `{AUDIT_DIR}/protocol-model.md`.
+Goal: understand the architecture down to state variables; map asset flows, cross-contract data bindings, and formalize invariant contracts. Output: `{AUDIT_DIR}/protocol-model.md`.
 
-## 2.1 Read everything, verify claims
+## 2.1 Read Everything & Model from Code Truth
 
-- Read ALL in-scope code before producing output. Read tests, fixtures, scripts, and configs too — they reveal developer intent, expected behavior, and what was never tested.
-- Verify README/docs claims against code. Mark every discrepancy `⚠️ UNCLEAR - <what and why>`.
-- Flag uncertainties rather than papering over them.
+- Read ALL in-scope code before writing findings. Read tests, scripts, mocks, and deployment configs — they reveal developer assumptions and untested edges.
+- Verify documentation claims against code reality. Mark every discrepancy as `⚠️ UNCLEAR - <what and why>`.
+- Extract the protocol's native vocabulary (`sharePrice`, `borrowIndex`, `rewardDebt`, `unbondingWindow`) — audits must be argued in the protocol's own exact language.
 
-## 2.2 Money map (accounting-first)
+## 2.2 Composable Money Map (Accounting-First Spine)
 
-For every value-bearing operation, answer: value enters via X, is tracked in Y, leaves via Z.
+For every value-bearing flow, trace: **Source → Transit → Accounting Ledger → Destination**.
 
-- **Assets table**: every asset (native coin, ERC20, NFT, LP position, wrapped asset) entering/leaving the protocol; who holds it; which mapping/balance tracks it.
-- **Total-vs-sum invariants**: `sum(user claims) <= actual balance`, `totalX == Σ userX` — write these down per asset.
-- **Fee flows**: every fee — rate, accrual point, destination.
-- **Accounting-desync check**: wherever value leaves the contract, confirm the variable tracking it is decremented **in the same branch** (the classic bug: value leaves, tracked total is never decremented, or decremented in only one of two branches).
+1. **Assets & Vaults Ledger Table:**
+   - Every asset (native ETH, ERC-20, ERC-721, ERC-1155, LP tokens, synthetic claims).
+   - Custody: Who holds the actual token balance? (Contract, Escrow, External Pool, Dynamic Field).
+   - Ledger: Which mapping or variable tracks the internal entitlement?
+   - Internal vs External Balance: Does the contract query `balanceOf(this)` or track an internal delta ledger? (Direct balance queries = vulnerable to donation/inflation).
+2. **Tracked Totals & Symmetries:**
+   - Every aggregate variable (`totalDeposits`, `totalDebt`, `totalSupply`, `totalShares`, `accRewardPerShare`).
+   - Sibling symmetry: For every `+` write on deposit/mint, find the exact matching `-` write on withdraw/burn.
+   - Branch symmetry: If an operation has multiple execution branches (e.g. early exit vs standard withdraw), ensure the aggregate is decremented in ALL branches.
+3. **Fee Routing & Protocol Take:**
+   - Fee rates, calculation formula, accrual point, and recipient address.
+   - Check if fees dilute existing depositors or are minted as new claims.
 
-## 2.3 Entry-point classification
+## 2.3 Cross-Contract & Transient State Topology
 
-For every external/public non-view function:
+- **Transient Storage Map (EIP-1153 `TSTORE`/`TLOAD`):**
+  - Identify all transient storage slots (reentrancy flags, temporary caller contexts, transient allowances, swap delta accumulators).
+  - Check cleanliness invariant: *Every transient slot set during execution MUST be reset to 0/clean before the transaction completes on all execution paths (including reverts in try/catch).*
+- **Inter-Contract Dependency Graph:**
+  - Map external oracle feeds, AMM pairs, yield strategy adapters, bridge endpoints.
+  - For each dependency: Is it read-only, state-mutating, or callback-triggering?
 
-- Access level: **permissionless** / **role-gated (name the role)** / **admin-only**. A function without a modifier but with an internal `msg.sender` check (`require(msg.sender == pendingX)`) is role-gated. `nonReentrant` is NOT access control.
-- Caller (User, Keeper, Admin, LP, Relayer...), parameter trust levels (`user-controlled`, `user-signed`, `keeper-provided`, `protocol-derived`).
-- Call chain: `→ Contract.fn() → Contract.fn()`; state modified (which storage vars/mappings); value flow (`in` / `out` / `none`).
+## 2.4 State Machine & Lifecycle Transitions
 
-## 2.4 State machines (reasoning Level 2)
+For every lifecycle action (deposit, withdraw, borrow, repay, liquidate, swap, stake, claim, unbond, upgrade):
+- **Preconditions:** Required caller state, balance thresholds, time/block maturity, pause status.
+- **State Deltas:** Exact storage variables mutated in sequential order.
+- **Postconditions:** Invariants that must hold after the state change.
+- **Reversibility / Unwind:** What is the exact inverse path? Can a user always exit?
 
-For each core operation (deposit/withdraw/borrow/repay/liquidate/swap/mint/burn/stake/claim/settle/transfer/upgrade):
+## 2.5 Ten Universal Invariant Classes (INV-x)
 
-- Preconditions → storage changes (variable by variable) → postconditions → events.
-- Note sentinel values (0 = "unset"), write-once flags gating critical logic, monotonic claim pointers, pause-state asymmetries.
+Extract 8–20 formal invariants with IDs `INV-x` covering these 10 universal classes:
 
-## 2.5 Roles & capabilities
+1. **Conservation of Assets (Solvency):** `totalActualAssets >= sum(userEntitlements) + protocolReserves`
+2. **Aggregate Integrity:** `trackedTotalX == Σ userBalancesX`
+3. **Exchange Rate Monotonicity:** `sharePrice(t2) >= sharePrice(t1)` (absent explicit, documented losses/fees)
+4. **Roundtrip Loss Bounds:** `withdraw(deposit(X)) <= X` and `withdraw(deposit(X)) >= X * (1 - maxDeclaredFee)`
+5. **Directional Rounding Favoring Protocol:** Rounding MUST favor the system over the user (e.g. mint rounds down shares, redeem rounds down assets, debt rounds up).
+6. **Health Factor Monotonicity:** Non-borrow actions (repay, deposit collateral) MUST strictly increase or preserve health factor.
+7. **Debt Non-Erasure:** `userDebt` cannot decrease without corresponding `repay()` token transfer or liquidator collateral seizure.
+8. **Clean State Termination:** Closing a position, unbonding, or full withdrawal MUST zero out related claim/debt pointers without residual locked dust.
+9. **Read-Only Reentrancy Invariance:** View functions (`getPrice()`, `getUnderlying()`, `previewRedeem()`) MUST return clean post-state or revert during external callbacks.
+10. **Transient Cleanliness:** All transient storage (`TSTORE`) slots return to zero before the root transaction ends.
 
-Every privileged role: capabilities; timelock?; multisig?; guardian?; emergency powers; upgrade rights; who can add/remove role holders; two-step transfer policy. Note which roles are **trusted by design** (they matter for the admin rule).
+## 2.6 Formal Numerical Stress-Testing Matrix
 
-## 2.6 Invariants (reasoning Level 4) — the protocol's contract with itself
+For all math formulas (interest accrual, share pricing, AMM curve, liquidation bonus):
 
-Extract **5–15 invariants**, each with an ID `INV-x`, in forms such as:
-
-- `sum(user claims) <= actual token balance`
-- `totalX == Σ userX`
-- `index only increases` (never decreases)
-- `every credited unit is debited exactly once`
-- `exchange rate is monotonic between updates`
-- `health factor > 1 after every user transaction`
-
-Sources: explicit `require`/`assert` statements; invariant/property test files; docs; derived from protocol math. This list is the primary vulnerability yardstick for the rest of the audit — every candidate finding will be tested against `INV-x`.
-
-## 2.7 Numeric grounding
-
-For all non-trivial math (exchange rates, interest accrual, fees, rewards, liquidation): trace one example through with concrete numbers. If a formula cannot be traced numerically, mark it `⚠️ UNCLEAR`.
+| Variable / Parameter | Test Values | Expected Invariant Behavior |
+|---|---|---|
+| Zero Input | `amount = 0` | Must revert or result in 0 state delta; no free shares / no zero-transfer revert. |
+| Minimum Dust | `amount = 1 wei` | Rounding must not result in 0-share mint or infinite exchange rate. |
+| Maximum Bound | `amount = type(uint256).max` or `type(uint128).max` | No silent arithmetic overflow / no truncation on narrowing casts. |
+| Decimal Mismatch | 6 decimals (USDC) vs 18 decimals (DAI/WETH) vs 27 decimals (Ray) | Scaling factors must be applied in correct order (`mulDiv` before divide). |
+| Catastrophic Cancellation | `(A + B) - A` where `A >> B` | Precision of `B` must not be lost to zero. |
+| Looped Rounding | 100 consecutive 1-wei operations | Accrued drift must be $\le 100$ wei, never compounding into protocol drain. |
 
 ## Output: `protocol-model.md`
 
-Sections: assets/money map · entry-point classification table · state machines per core operation · roles & capabilities · invariants `INV-x` · numeric traces · doc/code mismatches.
+Structured document containing:
+- Protocol summary & native vocabulary index.
+- Composable Money Map & Asset Custody Table.
+- Transient & Cross-Contract State Graph.
+- Core State Machine Transitions (forward and unwind paths).
+- Complete Invariant Registry (`INV-01` to `INV-15+`).
+- Numerical Stress-Test Traces for all mathematical formulas.
 
-## Exit gate
+## Exit Gate
 
-Money map complete; all entry points classified; ≥5 invariants with IDs; roles table complete.
+- Composable Money Map complete for all value flows.
+- Transient storage usage cataloged and clean-state rules defined.
+- $\ge 8$ formal invariants with IDs spanning solvency, accounting, and rounding.
+- Numerical traces completed for non-trivial formulas.

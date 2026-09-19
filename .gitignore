@@ -1,0 +1,41 @@
+# Audit outputs and generated reports
+AuditSharingan-audit/
+**/AuditSharingan-audit/
+evals/corpus/out/
+evals/corpus/cache/
+**/broadcast/
+**/artifacts/
+**/coverage/
+
+# Python caches and local test state
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# JavaScript, Rust, and local build output
+node_modules/
+dist/
+build/
+target/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.secret
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local Codex/agent metadata should not enter a published repository
+.agents/
+.codex/

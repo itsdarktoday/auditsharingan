@@ -1,0 +1,23 @@
+rules:
+  - id: auditsharingan-tx-origin
+    languages:
+      - solidity
+    message: "tx.origin is used for authorization or identity; verify the trust boundary."
+    severity: WARNING
+    patterns:
+      - pattern: tx.origin
+    metadata:
+      category: access-control
+      confidence: low
+      auditsharingan_status: candidate-lead
+  - id: auditsharingan-low-level-call-result
+    languages:
+      - solidity
+    message: "Low-level call result is ignored; verify failure handling and return-data assumptions."
+    severity: WARNING
+    patterns:
+      - pattern: $X.call(...)
+    metadata:
+      category: external-call
+      confidence: low
+      auditsharingan_status: candidate-lead

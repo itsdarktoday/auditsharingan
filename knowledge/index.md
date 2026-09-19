@@ -31,10 +31,19 @@ Trigger keywords → pattern file. Consulted in Phase 1.3 (prior-art) and Phase 
 ## EVM — liquidation, DoS, MEV, composability, cross-chain
 
 - `liquidation DoS`, `unliquidatable`, `bad debt` → `patterns/evm/liquidation-dos.md`
-- `permanent lock`, `gas exhaustion`, `unbounded loop`, `griefing` → `patterns/evm/dos-griefing.md`
+- `permanent lock`, `gas exhaustion`, `unbounded loop`, `griefing`, `63/64`, `EIP-150` → `patterns/evm/dos-griefing.md` + `patterns/evm/eip150-gas-griefing.md`
 - `sandwich`, `front-running`, `slippage`, `MEV` → `patterns/evm/mev-frontrunning.md`
 - `external protocol integration`, `hooks`, `cross-protocol assumption` → `patterns/evm/composability.md`
 - `bridge`, `relayer`, `message replay`, `chainid` → `patterns/evm/cross-chain.md`
+
+## EVM — L2 & Compiler Hazards
+
+- `Arbitrum`, `Optimism`, `Base`, `zkSync Era`, `L2`, `extcodesize`, `block.number on L2` → `patterns/evm/l2-execution-hazards.md`
+- `via_ir`, `optimizer`, `Yul`, `memory-safe`, `0.8.15`, `0.8.20 PUSH0` → `patterns/evm/compiler-optimizer-bugs.md`
+
+## DeFi Exploit Post-Mortem Corpus
+
+- `Euler`, `KyberSwap`, `Curve`, `Platypus`, `Radiant`, `Nomad`, `Wormhole`, `Mango`, `Hundred` → `postmortems/index.md`
 
 ## Solana
 
@@ -54,3 +63,12 @@ Trigger keywords → pattern file. Consulted in Phase 1.3 (prior-art) and Phase 
 
 - `under-constrained`, `alias`, `division`, `Mux selector`, `public input` → `patterns/zk/soundness.md`
 - `over-constraint`, `privacy leak`, `trusted setup` → `patterns/zk/completeness-privacy.md`
+
+## Solana — fund locking & lifecycle
+
+- `funder locked`, `deposit stuck`, `finalize revert`, `compute before move`, `no refund instruction`, `supply exhausted`, `terminal supply`, `epoch brick` → `patterns/pcn-funder-lock.md`
+
+## 2026-08-14 — EBSI core services (EVM registries)
+- Pattern: swap-and-pop index bookkeeping — when a dynamic array is swap-removed, every mapping that stores element→index MUST be remapped for the moved element, or the stale index later causes OOB panic (RecordLib.insertRecordOwner → permanent per-record DoS). Check both list+index pairs on every delete path (owners, revokedOwnerIds, children, allInvited, didsByController).
+- Pattern: permissionless first-writer-wins DID insertion without key-to-identifier binding → squatting; gatekeeper must be off-chain AND documented, or bind identifier to key.
+- Pattern: commit-reveal binding to msg.sender + EIP-712 field pinning + block maturity is the correct front-running defense; maturity must be ≥1 blocks after commit, measured from commit block.

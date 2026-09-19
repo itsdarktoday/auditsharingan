@@ -1,54 +1,93 @@
 # Phases 6–7 — Exploit Validation & False-Positive Elimination
 
-Goal: prove the attack works, or kill it. Output: `{AUDIT_DIR}/validation.md`.
+Goal: prove the attack executes and achieves material harm, or eliminate it with hard code-level evidence. Output: `{AUDIT_DIR}/validation.md`.
 
-## 6.1 Construct a minimal exploit (for serious candidates)
+## 6.1 Executable Proof Engine (Mandatory for Critical / High)
 
-Canonical sequence:
+Every candidate vulnerability rated Critical or High MUST undergo an executable proof attempt:
 
-```
-attacker setup → initial state → transaction 1 → transaction 2
-→ manipulation → state violation → asset extraction / impact → final state
-```
+1. **Foundry Test Scaffolding (`skills/poc-builder/`):**
+   - Pure logic / accounting bugs $\rightarrow$ Standalone Foundry unit test with minimal mocks.
+   - External integration / state-dependent bugs $\rightarrow$ Mainnet-fork test pinned to a specific block number (`vm.createSelectFork(RPC, BLOCK)`).
+2. **Canonical Exploit Sequence:**
+   ```
+   [Initial Baseline Snapshot]
+      └── Record VictimBalanceBefore, AttackerBalanceBefore, TotalSupplyBefore
+   [Step 1: Flash Loan / Capital Acquisition]
+   [Step 2: State Priming / Parameter Distortion]
+   [Step 3: Exploitation Call / Unauthorized State Delta]
+   [Step 4: Profit Extraction / Collateral Drain]
+   [Final Assertions]
+      └── assertGt(AttackerBalanceAfter, AttackerBalanceBefore + ExpectedProfit)
+      └── assertLt(VictimBalanceAfter, VictimBalanceBefore)
+   ```
+3. **Hostile Token & Callback Simulation Harnesses:**
+   - Test against hostile ERC-20 variants: Fee-on-transfer (e.g. 2% fee on `transferFrom`), Rebasing tokens (positive/negative rebases), Zero-transfer reverting tokens, Blocklist-reverting tokens, Reentrant ERC-777/1155 callbacks on recipient.
 
-- Prefer **executable proof**: a Foundry test (unit-level) or a fork test against deployed addresses — see `{SKILL_DIR}/skills/poc-builder/SKILL.md`. Invariant-class candidates → fuzz reproduction — see `{SKILL_DIR}/skills/fuzz-harness/SKILL.md`.
-- Record per exploit: attacker requirements, capital requirements, profit/loss, affected assets, affected users, protocol loss, repeatability, prerequisites.
-- Do not claim exploitability without evidence. If no PoC, keep a candidate only with a complete, unbroken trace; otherwise downgrade.
+## 6.2 Evidence-Tag Ladder & Ground Truth Authority
 
-## 6.2 False-positive elimination — "prove yourself wrong"
+Every validated candidate is stamped with an authoritative evidence tag:
 
-Run every candidate through these pre-gates before the Phase 10 judge:
+- `[POC-PASS]` (Score: 1.0) — Standalone executable Foundry test passes with explicit harm assertions.
+- `[FORK-PASS]` (Score: 0.95) — Executable test passes on pinned mainnet fork against real contracts.
+- `[MEDUSA-PASS]` (Score: 0.95) — Invariant fuzzer discovered concrete breaking sequence.
+- `[NUMERIC-TRACE]` (Score: 0.85) — Complete, unbroken step-by-step mathematical trace with concrete numbers.
+- `[CODE-TRACE]` (Score: 0.75) — Complete unbroken call path from entry point to storage corruption.
+- `[SPECULATIVE]` (Score: 0.20) — Depends on unobservable off-chain conditions or future admin actions (Capped at LOW).
 
-- **K1 Impact premise.** WHO loses WHAT? If the hypothesis is mechanism-only ("`startLiquidation` succeeds while active"), DO NOT kill it — derive the harm first: name the assets, the victims, and the amount at risk from the trace. Kill only if, after this attempt, NO identifiable victim or loss exists.
-- **K2 Guard interrupt.** Read every guard, check, modifier, and constraint on the attack path. A specific guard that interrupts the attack before harm (quote the exact line) → kill.
-- **K3 Speculative interruption does not count.** "The deployer would set X", "the caller would notice" → clears nothing; continue.
-- **K4 Privilege.** Harm requires a trusted role acting maliciously or against documented intent → reject unless an unprivileged amplifier is named: race / retroactive sweep / asymmetric formula / access gap.
-- **K5 Dust.** Dust-level loss with no compounding → demote.
-- **K6 Self-harm only** → reject.
-- **K7 Known/intended.** Mechanism matches the known-issues register or documented behavior → route to KNOWN verdict, not a new finding.
-- **Weak-evidence floor.** Loss depending on off-chain payload construction, admin-set-later config, unobservable user ordering, or callbacks on callee types outside the whitelist → cap at LOW.
-- **Calibration checks.** A rounding error is only Low if it cannot be looped — check first, always. Torn between two severities → choose the lower and say why in one line. Over-claiming costs credibility.
+*Rule:* `[MOCK]` or `[SPECULATIVE]` evidence **cannot support a REFUTED verdict** for a valid code trace.
 
-## 6.3 Document kills
+## 6.3 The 6-Dimension Devil's Advocate (DA) Pre-Gates
 
-Every killed candidate gets one line: what guard, invariant, or economic fact saved it. This is audit evidence too, and it feeds the knowledge phase.
+Run every candidate through these 6 strict falsification gates:
 
-## 6.4 Promotion criteria — what survives to the judge
+1. **K1 Impact Premise (WHO loses WHAT?):**
+   - Name the specific victim cohort (e.g. "LPs in Pool X", "Borrowers who staked Token Y") and the financial magnitude of the loss.
+   - If the finding only describes a mechanism (e.g. "function X can be called twice") with zero identifiable harm $\rightarrow$ **KILL / REJECT**.
+2. **K2 Exact-Line Guard Interrupt:**
+   - Read every require statement, modifier, custom error, and balance check on the call path.
+   - Quote the EXACT line and file that prevents execution. If an exact line stops the exploit $\rightarrow$ **KILL**.
+3. **K3 Speculative Defense Rejection:**
+   - "The deployer would configure X properly", "Users will notice the front-run" $\rightarrow$ **INVALID DEFENSE (CLEARS GATE)**. Only code stops code.
+4. **K4 Unprivileged Amplifier Requirement:**
+   - If the attack requires a privileged role (Admin, Owner, Governance), reject UNLESS an unprivileged amplifier is proven:
+     - Front-runnable setter / uninitialized state.
+     - Lack of parameter bounds enabling permanent fund bricking.
+     - Asymmetric formula enabling retroactive value extraction.
+5. **K5 Dust & Looping Economics:**
+   - If the extracted value is $\le \$10$ and cannot be looped $\rightarrow$ **CAP AT LOW**.
+   - If the dust extraction can be looped within a single transaction / block to extract material profit $\rightarrow$ **SUSTAIN HIGH/CRITICAL**.
+6. **K6 Self-Harm Only:**
+   - If the only account that loses funds is the caller itself $\rightarrow$ **REJECT**.
 
-The kill gates above must never be the only decision rule. A candidate SURVIVES Phase 6/7 (proceeds to the judge) when ANY of these hold:
+## 6.4 Variant Exploration (Anti-Over-Filtering Rule)
 
-- **P1 PoC**: executable proof passes the clean sequence (highest grade).
-- **P2 Complete trace**: no PoC, but the attacker→harm path is unbroken — every guard read, every precondition reachable through normal usage or common token behaviors.
-- **P3 Convergence**: 2+ independent lenses/agents/passes derived the same mechanism independently (weakens single-pass anchoring).
-- **P4 Partial path**: only weakness is an incomplete trace step, but the path is reachable and unguarded — survives with the missing step named explicitly (judged at confidence ≤75).
-- Otherwise → kill (with K-id) or demote to LEAD (high-signal trail for manual follow-up; never silent-dropped).
+**Before marking any candidate FALSE POSITIVE / REFUTED:**
+The validator MUST test at least TWO relaxed variants of the attack:
+1. **Timing Variant:** What if the attack is executed at block $T+1$, after an unbonding epoch, or immediately post-rebalance?
+2. **Amount / Parameter Variant:** What if the input is 0, 1 wei, `type(uint256).max`, or an exotic token address?
+3. **Ordering Variant:** What if the call order is reversed or interleaved with an external callback?
 
-Record which criterion (P1–P4) each surviving candidate meets in `validation.md`.
+Only if ALL variants fail with concrete code-level guards is the candidate killed.
+
+## 6.5 Promotion Criteria to Phase 10 Judge
+
+A candidate proceeds to the Judge if it satisfies ANY of:
+- **P1 Executable PoC:** Passes `[POC-PASS]` or `[FORK-PASS]`.
+- **P2 Complete Trace:** Unbroken call path with real constants and no blocking guard.
+- **P3 Multi-Lens Convergence:** Derived independently by $\ge 2$ lenses/agents.
+- **P4 Unguarded Partial Path:** Reachable vulnerable logic with a named missing prerequisite (Judged at confidence $\le 75$).
 
 ## Output: `validation.md`
 
-Per candidate: exploit trace (with PoC pointer and commands) or kill reason (with K-id and evidence).
+Structured file containing:
+- Per candidate: Evidence Tag (`[POC-PASS]`, `[NUMERIC-TRACE]`, etc.).
+- Exploit sequence, PoC file link (`test/Exploit.t.sol`), and exact `forge test` commands.
+- DA Gate evaluation results (K1–K6).
+- Documented kill ledger with exact line numbers for eliminated candidates.
 
-## Exit gate
+## Exit Gate
 
-Every candidate above LOW has explicit validate/kill evidence.
+- Every Critical/High candidate has an executable PoC attempt or unbroken numeric trace.
+- All 6 DA pre-gates evaluated.
+- Variant exploration executed for all contested candidates.

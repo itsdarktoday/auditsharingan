@@ -1,6 +1,6 @@
 ---
 name: evm-deep-audit
-description: EVM/Solidity deep-analysis sub-skill for the ultimate-web3-security pipeline. Not intended to be invoked standalone; loaded by the master skill when the target is EVM (Solidity/Vyper).
+description: EVM/Solidity deep-analysis sub-skill for the AuditSharingan pipeline. Not intended to be invoked standalone; loaded by the master skill when the target is EVM (Solidity/Vyper).
 ---
 
 # EVM Deep Audit
@@ -40,10 +40,10 @@ Load `references/attack-catalog.md` entries when the trigger fires:
 
 ## Severity calibration (EVM-specific)
 
-- Missing access control on a function setting a **protocol-wide economic parameter** → HIGH.
+- Missing access control on a function setting a **protocol-wide economic parameter** is a lead. Rate it HIGH only when an unprivileged, reachable path produces material loss or irreversible protocol damage; otherwise use MEDIUM/LOW according to impact.
 - Missing access control on **per-user state** setters → MEDIUM/LOW.
 - Admin action with no timelock → LOW/INFO (centralization), unless an unprivileged amplifier is named.
-- Missing `nonReentrant` with no callback-enabled token in scope → speculative, drop (FP risk); with a callback-enabled token, judge the actual path.
+- Missing `nonReentrant` with no callback-enabled token in scope → speculative, drop (FP risk); with a callback-enabled token, judge the actual path and token assumptions.
 - Griefing/DoS affecting ALL users of a critical function → HIGH; per-user → MEDIUM.
 
 ## Static tooling

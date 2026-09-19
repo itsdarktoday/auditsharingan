@@ -1,66 +1,90 @@
 ---
 name: fuzz-harness
-description: Invariant-driven fuzzing sub-skill for the ultimate-web3-security pipeline. Builds stateful fuzz harnesses (Echidna/Medusa for EVM, Trident for Solana) from the protocol invariants extracted in Phase 2. Loaded in Phase 4/6 for invariant-class analysis.
+description: Invariant-driven stateful fuzzing sub-skill for the AuditSharingan pipeline. Transforms formal protocol invariants into executable Echidna, Medusa, and Foundry invariant test suites. Loaded in Phase 4/6 for dynamic state exploration.
 ---
 
-# Fuzz Harness (Invariant Testing)
+# Fuzz Harness (Invariant Testing with Medusa / Echidna / Foundry)
 
-Turns `INV-x` invariants into executable fuzz properties. Loaded when the protocol has extractable invariants (accounting-heavy protocols) and the effort mode allows dynamic analysis.
+Turns formal invariants (`INV-01` to `INV-15`) into automated, stateful property tests that discover deep multi-transaction edge cases human auditors miss.
 
-## When to fuzz
+## 1. When to Deploy Invariant Fuzzing
 
-- The protocol has money-map invariants (`totalX == Σ userX`, solvency, exchange-rate monotonicity).
-- You want to find state sequences that break an invariant — sequences manual reasoning may miss.
-- Not for: pure access-control bugs (fuzzers find these poorly), one-shot init bugs, or things requiring specific timestamps.
+- Complex accounting & share conversion math (`totalAssets == Σ userBalances`, exchange rate monotonicity).
+- State machines with multiple user roles, unbonding queues, or asynchronous settlement steps.
+- Liquidation logic with dynamic collateral prices and changing fee structures.
 
-## Mechanical tooling (`{SKILL_DIR}/scripts/`)
+## 2. Invariant Property Definitions (The 5 Core Classes)
 
-- `ensure_foundry.sh <PROJECT_ROOT>` — verify forge/foundry.toml/forge-std present (exit 1 with install guidance).
-- `generate_suite.js` / `generate_handlers.js <PROJECT_ROOT> --suite-dir <dir> --meta-dir <dir>` — scaffold the harness dir and pre-populated handler stubs with correct signatures/type mappings (refine the stubs manually per handler-pattern rules below).
-- `setup_fuzz_profile.sh <PROJECT_ROOT>` — add `[profile.fuzz]` (via_ir=false) when the project uses via_ir, so Medusa coverage isn't deflated (prints `FUZZ_PROFILE=no-ir|ir-no-opt|default`).
-- `run_medusa.js <PROJECT_ROOT> --meta-dir <dir> --coverage-mode` / `run_echidna.js ...` — wrapped campaign runners with log files + plateau detection. Run asynchronously via the agent runtime, never with shell backgrounding.
+Translate `INV-x` from Phase 2 into executable boolean properties in `Properties.sol`:
 
-## Invariant extraction
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
 
-From Phase 2's `INV-x` list, formalize each as a checkable property:
+import {Handlers} from "./Handlers.sol";
 
-- **Global property** (`property_xxx() returns bool`): e.g., `return totalAssets >= totalShares_implied` — checked by the fuzzer after every call.
-- **Inline assertion** (`t(...)` / `assert(...)` inside handlers): fired mid-call, e.g., assert exchange rate didn't decrease after a deposit.
-- Prioritize: conservation (tokens in = tokens out), solvency, monotonicity, roundtrip (deposit→withdraw ≈ lossless), rounding bounds (share value never decreases below X).
+contract Properties is Handlers {
+    // 1. Solvency Invariant: Actual tokens must back or exceed total tracked claims
+    function property_solvency() public view returns (bool) {
+        return asset.balanceOf(address(target)) >= target.totalTrackedAssets();
+    }
 
-## Harness structure (EVM / Echidna-Medusa)
+    // 2. Aggregate Equivalence: Tracked total must equal the sum of all individual user balances
+    function property_aggregate_integrity() public view returns (bool) {
+        return target.totalShares() == ghost_sumUserShares;
+    }
 
+    // 3. Monotonic Share Price: Share price should never decrease without explicit realized losses
+    function property_share_price_non_decreasing() public view returns (bool) {
+        uint256 currentPrice = target.convertToAssets(1e18);
+        return currentPrice >= ghost_lastSharePrice;
+    }
+
+    // 4. Non-Zero Division / No Revert on Valid Range
+    function property_no_unexpected_arithmetic_revert() public view returns (bool) {
+        return !ghost_hasArithmeticReverted;
+    }
+
+    // 5. Transient Cleanliness: All transient storage slots reset to zero
+    function property_transient_cleanliness() public view returns (bool) {
+        return target.transientLock() == 0;
+    }
+}
 ```
-test/fuzz/
-├── Base.sol            # deployment + actors + seeded balances (mirror real deploy scripts)
-├── Handlers.sol        # inherits per-contract handlers
-├── handlers/<Contract>Handler.sol
-├── Properties.sol      # property_xxx() functions
-└── *.yaml              # echidna.yaml / medusa.json
-```
 
-- **Actors**: ≥3 fuzzer addresses (`0x10000`, `0x20000`, `0x30000`) mapped to roles (user, attacker, keeper); handlers pick callers via fuzzer input.
-- **Clamp inputs semantically**: amounts bounded to realistic ranges; avoid `assume()` on the critical path (each excluded class = unexplored attack space).
-- **Boundary stress variants**: dust deposits, max approvals, 0-amount, token with 2 decimals, fee-on-transfer mock (if arbitrary tokens in scope).
-- **Setup must mirror the real deployment** (same constructor args, same initial balances) — a harness that deploys a different config proves nothing.
+## 3. Stateful Handler Architecture & Ghost Variables
 
-## Running
+Create handlers in `test/fuzz/handlers/TargetHandler.sol` that track ground truth via ghost variables:
 
-- Echidna: `echidna . --contract FuzzTester --config echidna.yaml` (fast iteration, shrink).
-- Medusa: `medusa fuzz` (parallel, coverage reports). Check coverage: core protocol contracts 80%+ (via_ir can deflate coverage — set a fuzz profile with `via_ir = false` or adjust targets).
-- Solana: Trident — `trident fuzz run <target>` with an invariant-test scaffold (`#[invariant]` checks).
+- `ghost_sumUserShares`: Incremented on mint, decremented on redeem.
+- `ghost_totalDeposited`: Tracked net token deposits across all fuzz actors.
+- **Actor Boundaries:** Restrict caller addresses to an indexed actor array (`address[3] actors = [0x10000, 0x20000, 0x30000]`).
+- **Semantic Value Clamping:** Use `bound(amount, MIN, MAX)` to avoid unrealistic 0-token transfers or `type(uint256).max` overflow noise while strictly exploring boundary values ($0$, $1$ wei, $\text{depositMax}$).
 
-## Violation triage (do not report raw fuzz output as a finding)
+## 4. Execution Tools & Automation Scripts
 
-1. **Reproduce** the failing sequence in a Foundry unit test (`test_repro_<property>`); shrink it manually to the minimal steps.
-2. **Classify** the violation: real invariant break vs harness artifact (bad clamp, wrong initial state, property bug). Re-check the property against the protocol docs.
-3. **Sensitivity/durability**: does the break depend on a single exact input? Perturb amounts ±10% — a real bug survives perturbation; a boundary artifact often doesn't.
-4. If real → feed back into `leads.md` as a lead with the sequence; run it through the Phase 5 hypothesis template and the rest of the pipeline like any other lead.
+Run the scripts that actually exist under `{SKILL_DIR}/scripts/`:
+- `ensure_foundry.sh <ROOT>` $\rightarrow$ Verify the Forge toolchain.
+- `setup_fuzz_profile.sh <ROOT>` $\rightarrow$ Configure a local fuzz profile; inspect the diff before use.
+- `mutation_fuzzer.py <ROOT>` $\rightarrow$ Generate bounded mutation candidates when its dependencies are available.
+- `run_symbolic.sh <ROOT>` $\rightarrow$ Run the repository's configured symbolic command when present.
+
+There is no universal local command that can dispatch Medusa, Echidna, or
+Trident across every target. Check tool versions first, record missing tools in
+the run manifest, and never describe a campaign as complete when it did not
+execute.
+
+## 5. Violation Triage & Reproduction
+
+When a fuzzer breaks a property:
+1. **Extract Minimal Call Sequence:** Identify the exact sequence of transactions (e.g. `deposit(1) -> donate(100e18) -> deposit(50e18) -> redeem(1)`).
+2. **Reproduce in Standalone Unit Test:** Port the sequence directly to `test/Exploit_Repro.t.sol` using Foundry.
+3. **Falsification Check:** Confirm whether the violation is a genuine protocol vulnerability or a harness artifact (e.g. unrealistic mock behavior or unconstrained ghost variable).
+4. **Feed to Phase 5:** Real violations immediately feed into `leads.md` as P0 leads.
 
 ## Output
 
-`{AUDIT_DIR}/fuzz/` — harness, configs, `PROPERTIES.md` (property ↔ INV-x mapping), `VIOLATIONS.md` (triaged violations with minimal sequences), coverage summary.
-
-## Blind spots (state in the report)
-
-Fuzzers prove violations exist, never that they don't. Coverage < 100% means unexplored paths. Time-box campaigns (default: 15–30 min property) and note the bound.
+Artifacts in `{AUDIT_DIR}/fuzz/`:
+- `Harness/` (Base, Handlers, Properties).
+- `PROPERTIES.md` — Mapping of `INV-x` to code property functions.
+- `VIOLATIONS.md` — Triaged breaking sequences and reproduction traces.

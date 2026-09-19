@@ -1,6 +1,6 @@
 # Plamen — Validation-Methodology Extraction Report
 
-**Repo:** `/home/nishan/ultimate-web3-security/sources/plamen` (v2.2.4, MIT)
+**Repo:** `plamen` (v2.2.4, MIT)
 **Type:** Autonomous multi-agent Web3 audit orchestrator (Claude Code + OpenAI Codex backends, Python driver) for EVM/Solana/Aptos/Sui/Soroban/DAML smart contracts and L1 Go/Rust node clients.
 **Primary files studied:** `rules/phase4-confidence-scoring.md`, `rules/phase5-poc-execution.md`, `rules/phase4c-chain-prompt.md`, `rules/finding-output-format.md`, `rules/report-template.md`, `prompts/evm/generic-security-rules.md`, `prompts/shared/v2/phase{3,4a5,4e,5,6d,6e}*.md`, `agents/security-{analyzer,verifier}.md`, `agents/depth-*.md`, `docs/l1-mode/severity-matrix.md`, `skills/audit-prep/*`, `agents/skills/evm/verification-protocol/SKILL.md`.
 
@@ -99,4 +99,3 @@ Mechanism tests (insufficient): "startLiquidation succeeds while market is activ
 The skeptic-judge weighs the `effective_tag` from `verdict_manifest.json`, not verifier prose: "`[POC-PASS]` outweighs theoretical arguments — **but only when sourced from `verdict_manifest.json` `effective_tag`**, not from the verifier's prose `Evidence Tag` field… When `integrity_state == INFLATED_PROSE`… weigh the finding using the downgraded `effective_tag`, NOT the inflated prose claim."
 
 **E. Assertion Retry Protocol (anti-gaming) — `rules/phase5-poc-execution.md`:** on assertion failure, self-diagnose with four questions ("Did I test the EXACT function at the EXACT location…? Is my assertion testing the CLAIMED HARM, not just a mechanism step? Did I use realistic values from the codebase (not made-up constants)?"); if all four are yes, accept `[POC-FAIL]` with ONE retry that "MUST keep the SAME target function call, the SAME harm assertion, and the SAME finding location"; "Attempt 2 tests a DIFFERENT function than the Location field → `[CODE-TRACE]`, not `[POC-PASS]`"; "Do NOT weaken the assertion to force a pass." Separately, "**Variant Exploration Before FALSE_POSITIVE**: Before marking FALSE_POSITIVE, test at least ONE relaxed variant of the attack… (timing…, amount…, ordering…, or initial state…). After 2+ variant failures → FALSE_POSITIVE is justified."
-

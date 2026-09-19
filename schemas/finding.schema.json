@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AuditSharingan evidence-backed finding",
+  "type": "object",
+  "required": ["id", "title", "severity", "confidence", "status", "evidence_level", "location", "root_cause", "attack_path", "impact", "invariant", "remediation", "known_issue_check", "decision_receipt"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^[A-Z]+-[0-9]{2,}$"},
+    "title": {"type": "string", "minLength": 1},
+    "severity": {"enum": ["critical", "high", "medium", "low", "informational"]},
+    "confidence": {"enum": ["confirmed", "high", "medium", "low", "contested"]},
+    "status": {"enum": ["validated", "killed", "lead", "deferred"]},
+    "evidence_level": {"enum": ["poc", "trace", "mathematical-proof", "static-lead", "none"]},
+    "location": {"type": "object", "required": ["file", "lines"]},
+    "root_cause": {"type": "string", "minLength": 1},
+    "attack_path": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "impact": {"type": "object", "required": ["victim", "asset_or_state", "loss_mechanism"]},
+    "invariant": {"type": "string", "minLength": 1},
+    "remediation": {"type": "string", "minLength": 1},
+    "known_issue_check": {"type": "string", "minLength": 1},
+    "decision_receipt": {"type": "string", "minLength": 1}
+  }
+}
