@@ -5,7 +5,7 @@
 <h1 align="center">AuditSharingan</h1>
 
 <p align="center">
-  Web3 security auditing for agents that need evidence, not noise.
+  Web3 security auditing skill for agents that need evidence, not noise.
 </p>
 
 <p align="center">
