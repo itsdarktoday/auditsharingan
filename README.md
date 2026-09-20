@@ -84,7 +84,7 @@ For a local Agent Skills installation, copy the downloaded folder to:
 
 For a custom harness, load:
 
-```text
+```bash
 /path/to/auditsharingan/SKILL.md
 ```
 
@@ -129,6 +129,32 @@ Before publishing changes:
 ```bash
 python3 -B scripts/release_check.py
 ```
+
+## Example Workflow
+
+```text
+Target Protocol
+      ↓
+Repository Scoping
+      ↓
+Threat Modeling
+      ↓
+Lead Generation
+      ↓
+Validation
+      ↓
+PoC / Evidence
+      ↓
+Final Report
+```
+
+## Why AuditSharingan?
+
+Most audit workflows stop at scanner output and heuristic-based findings.
+
+AuditSharingan focuses on protocol understanding first, separating leads from validated findings and requiring reproducible evidence before reporting impact.
+
+The goal is simple: fewer assumptions, more proof.
 
 ## Boundaries
 
